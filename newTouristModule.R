@@ -100,8 +100,6 @@ consumptionData.2.1$totDayVisNum[is.na(consumptionData.2.1$totDayVisNum)] <- 0
 ## and from each country
 touristOverNightData.3 <- merge(touristData.1, consumptionData.2.1, by=c("dest", "year"), all.x = TRUE)
 
-#data4 = touristOverNightData.3
-
 ## rearrange the column order to make it easier to view
 touristOverNightData.3 <- setcolorder(touristOverNightData.3, neworder = c("year", "orig", "dest", "onVisNum",
                                          "onVisDays", "totDayVisNum"))
@@ -152,7 +150,6 @@ setnames(daysIn.5, 'dest', 'country')
 tourismDays.6 <- merge(daysOut.4, daysIn.5, by=c("country", "year"), all.x = TRUE)
 tourismDays.6[, daysNet := daysIn - daysOut]
 
-data5= tourismDays.6
 # Pull food consumption
 
 ## set the keys to get the calorie consumption, by individual FBS commodity for
@@ -178,8 +175,6 @@ timePointYearsDim4 <- Dimension(name = "timePointYears", keys = yearRange)
 calorieConsumptionKey <- DatasetKey(domain = "agriculture", dataset = "agriculture",
                   dimensions = list(countryCodeDim1, foodCodeDim2, itemCPCDim3, timePointYearsDim4))
 
-data6 = calorieConsumptionKey
-
 ## download the calorie consumption data from the SWS
 calorieConsumptionData.7 <- GetData(calorieConsumptionKey, flags = FALSE)
 
@@ -189,8 +184,7 @@ calorieConsumptionData.7.1 <- dcast.data.table(calorieConsumptionData.7,
 
 ## set the column names to small simple ones representing destination cuntry, database
 ## element, year and total calories
-setnames(calorieConsumptionData.7.1, old = c("geographicAreaM49", "measuredItemCPC",
-                        "timePointYears", "5141"),
+setnames(calorieConsumptionData.7.1, old = c("geographicAreaM49", "measuredItemCPC", "timePointYears", "5141"),
          new = c("country", "item", "year", "totalCal"))
 
 
@@ -205,7 +199,6 @@ popKey <- DatasetKey(domain = "population", dataset = "population",
 
 ## download the population data from the SWS
 popData.8 <- GetData(popKey, flags = FALSE)
-# data7 = popData.8
 
 popData.8.1 <- dcast.data.table(popData.8,
                           geographicAreaM49 + timePointYears ~ measuredElementPopulation,
@@ -229,8 +222,6 @@ calorieConsumptionPopData.9 <- merge(calorieConsumptionData.7.1, popData.8.1, by
 ## Population is in 1000s
 calorieConsumptionPopData.9[, calPerPersonPerDay := totalCal / 365 / (pop * 1000)]
 
-#data8 = calorieConsumptionPopData.9
-
 ## merge data8 and data5 to allow calculation of calories 
 ## by commodity per year for who goes to the country and who left  
 
@@ -244,18 +235,15 @@ caloriesCommoditiesTourist.10[, calOutCountry := daysOut * calPerPersonPerDay]
 caloriesCommoditiesTourist.10[, calInCountry := daysIn * calPerPersonPerDay]
 caloriesCommoditiesTourist.10[, calNetCountry := daysNet * calPerPersonPerDay]
 
-data9 = caloriesCommoditiesTourist.10
-
 ## Get rid of some of the columns that we don't need anymore:
 
 caloriesCommoditiesTourist.10[, c("totalCal", "pop", "calPerPersonPerDay", "daysOut", 
           "daysIn", "daysNet") := NULL]
 
-
-## net calories
+## Net calories
 touristCaloriesNetCountryByItem.11 <- caloriesCommoditiesTourist.10[ , list(calNetCountry),
                                           by = list(year, country, item) ]
 
-
+# Save the data
 
 SaveData(domain = "agriculture", dataset = "agriculture", data = "touristCaloriesNetCountryByItem.11")
