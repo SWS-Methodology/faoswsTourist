@@ -244,6 +244,11 @@ caloriesCommoditiesTourist.10[, c("totalCal", "pop", "calPerPersonPerDay", "days
 touristCaloriesNetCountryByItem.11 <- caloriesCommoditiesTourist.10[ , list(calNetCountry),
                                           by = list(year, country, item) ]
 
+touristCaloriesNetCountryByItem.11[, measuredElement:= NA]
+touristCaloriesNetCountryByItem.11[, flagObservationStatus:= "I"]
+touristCaloriesNetCountryByItem.11[, flagMethod:= "e"]
+
+
 # Save the data
 
-SaveData(domain = "agriculture", dataset = "agriculture", data = "touristCaloriesNetCountryByItem.11")
+SaveData(domain = "agriculture", dataset = "agriculture", data = touristCaloriesNetCountryByItem.11)
