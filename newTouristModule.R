@@ -10,6 +10,7 @@ foodCode = "5141"
 # 1. Pull in tourist data
 
 DEBUG_MODE = Sys.getenv("R_DEBUG_MODE")
+R_SWS_SHARE_PATH = Sys.getenv("R_SWS_SHARE_PATH")
 
 if(!exists("DEBUG_MODE") || DEBUG_MODE == ""){
   token = "3e0bbf64-9e57-4731-9341-5b7f7a4d0a42"
@@ -28,6 +29,10 @@ tourismElementCodes <- faosws::GetCodeList("tourism", "tourist_consumption",
                                            "tourismElement")
 
 ## set the year range to pull data from the SWS
+
+if(swsContext.computationParams$startYear > swsContext.computationParams$endYear)
+    stop("First Year should be smallest than End Year")
+## yearRange <- swsContext.computationParams$startYear:swsContext.computationParams$endYear
 
 yearRange <- swsContext.datasets[[1]]@dimensions$timePointYears@keys
 
@@ -50,6 +55,8 @@ touristKey <- DatasetKey(domain = "tourism", dataset = "tourist_flow",
 ## download the first tourist data from the SWS
 
 touristData.1 <- GetData(touristKey, flags = FALSE)
+
+cat("Tourist data loaded with ", nrow(touristData.1), " rows.")
 
 ## remove the tourismElement column which is of no value to me here
 touristData.1 <- touristData.1[, which(!grepl("tourism", colnames(touristData.1))), with=FALSE]
@@ -251,4 +258,7 @@ touristCaloriesNetCountryByItem.11[, flagMethod:= "e"]
 
 # Save the data
 
-SaveData(domain = "agriculture", dataset = "agriculture", data = touristCaloriesNetCountryByItem.11)
+# SaveData(domain = "agriculture", dataset = "agriculture", data = touristCaloriesNetCountryByItem.11)
+save(touristCaloriesNetCountryByItem.11, file = paste0(R_SWS_SHARE_PATH, "/caetano/tourist_",
+                                                       gsub(" |:|-", "_", Sys.time()), ".RData"))
+
