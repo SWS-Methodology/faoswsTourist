@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<RScript xmlns="http://www.fao.org/rScript">
+    <Name>brunoTestScript</Name>
+    <Description>brunoTestScript</Description>
+    <Category>Computation</Category>
+    <Authors>
+        <Author>
+            <Name>Bruno Vidigal</Name>
+            <Mail>bruno.caetanovidigal@fao.org</Mail>
+        </Author>
+    </Authors>
+	<Params>
+    <Param xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="Number">
+            <Code>startYear</Code>
+            <Label>First year</Label>
+            <Description>The start of the computation period</Description>
+            <Compulsory>true</Compulsory>
+            <Min>1961</Min>
+            <Max>2013</Max>
+    </Param>
+    <Param xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="Number">
+            <Code>endYear</Code>
+            <Label>Last year</Label>
+            <Description>The end of the computation period</Description>
+            <Compulsory>true</Compulsory>
+            <Min>1961</Min>
+            <Max>2013</Max>
+    </Param>
+	</Params>
+    <Datasets>
+        <MainDataset>
+            <Code>tourismprod</Code>
+            <SelectableDimensions>
+                <SelectableDimension compulsory="false">geographicAreaM49</SelectableDimension>
+                <SelectableDimension compulsory="false">tourismElement</SelectableDimension>
+                <SelectableDimension compulsory="false">measuredItemCPC</SelectableDimension>
+                <SelectableDimension compulsory="false">timePointYears</SelectableDimension>
+            </SelectableDimensions>
+        </MainDataset>
+    </Datasets>
+    <InteractiveValidation>false</InteractiveValidation>
+    <Background>true</Background>
+</RScript>
