@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <RScript xmlns="http://www.fao.org/rScript">
-    <Name>brunoTestScript</Name>
-    <Description>brunoTestScript</Description>
+    <Name>touristModule</Name>
+    <Description>Compute Tourist Consumption</Description>
     <Category>Computation</Category>
     <Authors>
         <Author>
