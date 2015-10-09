@@ -13,8 +13,9 @@ DEBUG_MODE = Sys.getenv("R_DEBUG_MODE")
 R_SWS_SHARE_PATH = Sys.getenv("R_SWS_SHARE_PATH")
 
 if(!exists("DEBUG_MODE") || DEBUG_MODE == ""){
-  token = "3e0bbf64-9e57-4731-9341-5b7f7a4d0a42"
+  token = "41558a20-c419-4821-8288-2dc7ccbc5ecf"
   GetTestEnvironment("https://hqlqasws1.hq.un.fao.org:8181/sws",token)
+
 }
 
 ## set the keys to get the tourist data from the FAO working system
@@ -30,19 +31,24 @@ tourismElementCodes <- faosws::GetCodeList("tourism", "tourist_consumption",
 
 ## set the year range to pull data from the SWS
 
+swsContext.computationParams$startYear <- as.numeric(swsContext.computationParams$startYear)
+swsContext.computationParams$endYear <- as.numeric(swsContext.computationParams$endYear)
 if(swsContext.computationParams$startYear > swsContext.computationParams$endYear)
     stop("First Year should be smallest than End Year")
-## yearRange <- swsContext.computationParams$startYear:swsContext.computationParams$endYear
+## yearRange <- swsContext.datasets[[1]]@dimensions$timePointYears@keys
+yearRange <- swsContext.computationParams$startYear:swsContext.computationParams$endYear
+yearRange <- as.character(yearRange)
 
-yearRange <- swsContext.datasets[[1]]@dimensions$timePointYears@keys
 
 ##Pull the bidirectional movement data from SWS pertaining to tourist visitors
 ##to all countries
 
 destinationCountryDim1 <- Dimension(name = "destinationCountryM49",
-                  keys = destinationAreaCodes[, code])
+                                    keys = destinationAreaCodes[, code])
 
-originCountryDim2 <- Dimension(name = "originCountryM49", keys = originAreaCodes[, code])
+
+originCountryDim2 <- Dimension(name = "originCountryM49",
+                               keys = originAreaCodes[, code])
 
 tourismElementDim3 <- Dimension(name = "tourismElement", keys = ("60"))
 
@@ -251,14 +257,22 @@ caloriesCommoditiesTourist.10[, c("totalCal", "pop", "calPerPersonPerDay", "days
 touristCaloriesNetCountryByItem.11 <- caloriesCommoditiesTourist.10[ , list(calNetCountry),
                                           by = list(year, country, item) ]
 
-touristCaloriesNetCountryByItem.11[, measuredElement:= NA]
+touristCaloriesNetCountryByItem.11[, tourismElement:= "100"]
 touristCaloriesNetCountryByItem.11[, flagObservationStatus:= "I"]
 touristCaloriesNetCountryByItem.11[, flagMethod:= "e"]
 
 
 # Save the data
 
-# SaveData(domain = "agriculture", dataset = "agriculture", data = touristCaloriesNetCountryByItem.11)
-save(touristCaloriesNetCountryByItem.11, file = paste0(R_SWS_SHARE_PATH, "/caetano/tourist_",
-                                                       gsub(" |:|-", "_", Sys.time()), ".RData"))
+setnames(touristCaloriesNetCountryByItem.11,
+         old = c("year", "country", "item", "calNetCountry"),
+         new = c("timePointYears", "geographicAreaM49", "measuredItemCPC", "Value"))
+setcolorder(touristCaloriesNetCountryByItem.11,
+            c("timePointYears", "geographicAreaM49", "measuredItemCPC",
+              "tourismElement", "Value", "flagObservationStatus", "flagMethod"))
+
+SaveData(domain = "tourism", dataset = "tourismprod", data = touristCaloriesNetCountryByItem.11)
+
+# save(touristCaloriesNetCountryByItem.11, file = paste0(R_SWS_SHARE_PATH, "/caetano/tourist_",
+#                                                        gsub(" |:|-", "_", Sys.time()), ".RData"))
 
