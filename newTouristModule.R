@@ -172,10 +172,7 @@ foodElementCodes <- faosws::GetCodeList("suafbs", "fbs", "measuredElementSuaFbs"
 
 ## the Item codes contain a hierarchy.  We need to determine all the child
 ## nodes of the hierarchy and add them to get total consumption.
-foodItemTree <- GetCodeTree("agriculture", "agriculture", "measuredItemCPC")
-oldAreaCodes <- GetCodeList("agriculture", "agriculture", "geographicAreaM49")
-foodItemTree <- adjacent2edge(foodItemTree)
-children <- setdiff(foodItemTree$children, foodItemTree$parent)
+itemCodes <- GetCodeList("agriculture", "agriculture", "measuredItemCPC")[, code]
 
 ## Pull the supply utilization account(SUA) food balance sheet (FBS) data from
 ## SWS pertaining to calorie consumption from each commodity in each country
@@ -183,7 +180,7 @@ countryCodeDim1 <- Dimension(name = "geographicAreaM49",
                   keys = oldAreaCodes[type == "country", code])
 ## A bit hackish: get population from total calories and total calories/person/day
 foodCodeDim2 <- Dimension(name = "measuredElement", keys = c(foodCode))
-itemCPCDim3 <- Dimension(name = "measuredItemCPC", keys = children)
+itemCPCDim3 <- Dimension(name = "measuredItemCPC", keys = itemCodes)
 timePointYearsDim4 <- Dimension(name = "timePointYears", keys = yearRange)
 calorieConsumptionKey <- DatasetKey(domain = "agriculture", dataset = "agriculture",
                   dimensions = list(countryCodeDim1, foodCodeDim2, itemCPCDim3, timePointYearsDim4))
@@ -271,7 +268,11 @@ setcolorder(touristCaloriesNetCountryByItem.11,
             c("timePointYears", "geographicAreaM49", "measuredItemCPC",
               "tourismElement", "Value", "flagObservationStatus", "flagMethod"))
 
-SaveData(domain = "tourism", dataset = "tourismprod", data = touristCaloriesNetCountryByItem.11)
+stats = SaveData(domain = "tourism", dataset = "tourismprod", data = touristCaloriesNetCountryByItem.11)
+
+paste0(stats$inserted, " observations written, ",
+       stats$ignored, " weren't updated, ",
+       stats$discarded, " had problems.")
 
 # save(touristCaloriesNetCountryByItem.11, file = paste0(R_SWS_SHARE_PATH, "/caetano/tourist_",
 #                                                        gsub(" |:|-", "_", Sys.time()), ".RData"))
