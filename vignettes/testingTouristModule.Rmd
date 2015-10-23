@@ -1,10 +1,26 @@
+---
+title: "Testing Tourist Module"
+author: "Bruno Caetano Vidigal"
+date: "22 October 2015"
+output: pdf_document
+---
+
+In this document there are some statistics and summaries about the **Tourist Module**.
+
+We need to compare the estimates for tourism consumption of **Tourist Module** for all the countries and commodities with **Food Data**.
+The **estimates** for **tourism consumption** with **103 distincts countries** and **419 distincts commodities** are below:
+
+```{r include=FALSE, cache=FALSE}
 ## Load required functions
 library(faosws)
 library(dplyr)
 library(reshape2)
 library(data.table)
 library(faoswsUtil)
+```
 
+
+```{r, echo=FALSE}
 foodCode = "5141"
 
 # 1. Pull in tourist data
@@ -62,7 +78,7 @@ touristKey <- DatasetKey(domain = "tourism", dataset = "tourist_flow",
 
 touristData.1 <- GetData(touristKey, flags = FALSE)
 
-cat("Tourist data loaded with ", nrow(touristData.1), " rows.")
+#cat("Tourist data loaded with ", nrow(touristData.1), " rows.")
 
 ## remove the tourismElement column which is of no value to me here
 touristData.1 <- touristData.1[, which(!grepl("tourism", colnames(touristData.1))), with=FALSE]
@@ -172,6 +188,7 @@ foodElementCodes <- faosws::GetCodeList("suafbs", "fbs", "measuredElementSuaFbs"
 
 ## the Item codes contain a hierarchy.  We need to determine all the child
 ## nodes of the hierarchy and add them to get total consumption.
+oldAreaCodes <- GetCodeList("agriculture", "agriculture", "geographicAreaM49")
 itemCodes <- GetCodeList("agriculture", "agriculture", "measuredItemCPC")[, code]
 
 ## Pull the supply utilization account(SUA) food balance sheet (FBS) data from
@@ -257,23 +274,89 @@ touristCaloriesNetCountryByItem.11 <- caloriesCommoditiesTourist.10[ , list(calN
 touristCaloriesNetCountryByItem.11[, tourismElement:= "100"]
 touristCaloriesNetCountryByItem.11[, flagObservationStatus:= "I"]
 touristCaloriesNetCountryByItem.11[, flagMethod:= "e"]
+```
 
+```{r, echo=FALSE}
+head(touristCaloriesNetCountryByItem.11)
+```
 
-# Save the data
+The **Food Data** with **103 distincts countries** and **419 distincts commodities** are below:
 
-setnames(touristCaloriesNetCountryByItem.11,
-         old = c("year", "country", "item", "calNetCountry"),
-         new = c("timePointYears", "geographicAreaM49", "measuredItemCPC", "Value"))
-setcolorder(touristCaloriesNetCountryByItem.11,
-            c("timePointYears", "geographicAreaM49", "measuredItemCPC",
-              "tourismElement", "Value", "flagObservationStatus", "flagMethod"))
+```{r, echo=FALSE}
+head(calorieConsumptionData.7.1)
+```
 
-stats = SaveData(domain = "tourism", dataset = "tourismprod", data = touristCaloriesNetCountryByItem.11)
+**Merging** these datasets:
 
-paste0(stats$inserted, " observations written, ",
-       stats$ignored, " weren't updated, ",
-       stats$discarded, " had problems.")
+```{r, echo=FALSE}
+## Merge Tourism data with food data
+testingTouristData <- merge(touristCaloriesNetCountryByItem.11, calorieConsumptionData.7.1, 
+      by = c("year", "country", "item"))
 
-# save(touristCaloriesNetCountryByItem.11, file = paste0(R_SWS_SHARE_PATH, "/caetano/tourist_",
-#                                                        gsub(" |:|-", "_", Sys.time()), ".RData"))
+head(testingTouristData)
+```
 
+Now we can calculate **% tourism consumption** per country and per commoditie. 
+```{r, echo=FALSE}
+## % tourism consumption per country and item
+testingTouristData[, percentCalItemCountry := calNetCountry/totalCal]
+head(testingTouristData)
+```
+
+When the estimates for tourism consumption is **negative** it means that more people **left this country**. If is **positive**, it means more people **went** to this country.
+So we can calculate which countries were more impacted with tourism consumption and which one had less tourism consumption in 2012.
+
+````{r, echo = FALSE}
+
+tabCountry1 <- testingTouristData[, list(percentCalCountry = sum(calNetCountry, na.rm=T)/sum(totalCal, na.rm=T)),
+                   by = list(year, country)]
+````
+
+Summary of estimates tourism consumption:
+```{r, echo=FALSE}
+summary(tabCountry1$percentCalCountry)
+```
+
+**Top 5 positive** estimated consumption per country for tourism. **Bahamas (44)** and **Seychelles (690)** are the two firsts countries with more % tourism consumption.
+````{r, echo = FALSE}
+
+tabCountry1 <- tabCountry1[order(-tabCountry1$percentCalCountry)]
+tabCountry1[, rank := 1:nrow(tabCountry1)]
+head(tabCountry1, 5)
+````
+
+**Top 5 negative** estimated consumption per country for tourism. Note that **Albania (8)** has a strange number. It's necessary to check it.
+````{r, echo = FALSE}
+tail(tabCountry1, 5)
+````
+
+The decis are:
+```{r, echo=FALSE}
+quantile(tabCountry1$percentCalCountry, na.rm = T, 
+         probs = c(0:9)/10)
+```
+The histogram and BoxPlot are below:
+
+```{r, echo=FALSE}
+par(mfrow=c(1, 2))
+hist(tabCountry1$percentCalCountry, breaks = 100, xlab="% Tourism consumption", main = "")
+boxplot(tabCountry1$percentCalCountry)
+```
+
+If we remove **Albania** this analyze, the new plots are:
+
+```{r, echo=FALSE}
+tabCountry1.1 <- tabCountry1[country != 8]
+par(mfrow=c(1, 2))
+hist(tabCountry1.1$percentCalCountry, xlab="% Tourism consumption", main = "")
+boxplot(tabCountry1.1$percentCalCountry)
+```
+
+With this data, we have this % below about tourism consumption.
+```{r, echo=FALSE}
+tabCountry1[, consumption := ifelse(percentCalCountry > 0, "positive",
+                                    ifelse(percentCalCountry < 0, "negative", "zero"))]
+t1 <- tabCountry1[, .N, consumption]
+t1[, percent := 100*round(N/sum(N), 3)]
+t1
+````
