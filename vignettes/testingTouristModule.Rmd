@@ -314,10 +314,14 @@ testingTouristData <- merge(touristNetCaloriesData, foodData,
 ## % tourism consumption per country and item
 testingTouristData[, percentCalories := netCalories/totalCalories]
 
+#save(testingTouristData, file = "~/Github/faoswsTourist/Data/testingTouristData.RData")
+
 ## % consumption per country
 
 tabCountry <- testingTouristData[, list(percentCaloriesCountry = sum(netCalories, na.rm=T)/sum(totalCalories, na.rm=T)),
                    by = list(year, country, countryCode)]
+
+#save(tabCountry, file = "~/Github/faoswsTourist/Data/tabCountry.RData")
 
 mapData <- data.table(map_data(map = "world"))
 setnames(mapData, old = c("long", "lat", "group", "order", "region", "subregion"),
