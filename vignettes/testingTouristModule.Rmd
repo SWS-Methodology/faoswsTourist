@@ -12,18 +12,16 @@ The **estimates** for **tourism consumption** with **103 distincts countries** a
 
 ```{r include=FALSE, cache=FALSE}
 ## Load required functions
-library(stringi)
 library(faosws)
 library(dplyr)
 library(reshape2)
 library(data.table)
 library(faoswsUtil)
-library(maps)
 library(ggplot2)
 ```
 
 
-```{r include=FALSE, cache=FALSE}
+```{r, echo=FALSE}
 foodCode = "5141"
 
 # 1. Pull in tourist data
@@ -131,7 +129,6 @@ consumptionData.2.1$totDayVisNum[is.na(consumptionData.2.1$totDayVisNum)] <- 0
 ## of days they visited, the other data set the number of tourists travelling to
 ## and from each country
 touristOverNightData.3 <- merge(touristData.1, consumptionData.2.1, by=c("dest", "year"), all.x = TRUE)
-touristOverNightData.3$totDayVisNum[is.na(touristOverNightData.3$totDayVisNum)] <- 0
 
 ## rearrange the column order to make it easier to view
 touristOverNightData.3 <- setcolorder(touristOverNightData.3, neworder = c("year", "orig", "dest", "onVisNum",
@@ -278,82 +275,128 @@ touristCaloriesNetCountryByItem.11 <- caloriesCommoditiesTourist.10[ , list(calN
 touristCaloriesNetCountryByItem.11[, tourismElement:= "100"]
 touristCaloriesNetCountryByItem.11[, flagObservationStatus:= "I"]
 touristCaloriesNetCountryByItem.11[, flagMethod:= "e"]
+```
 
-cpcCode <- GetCodeList("agriculture", "agriculutre", "measuredItemCPC")[, code, description]
-setnames(cpcCode, old = c("description", "code"), new = c("Item", "item"))
+```{r, echo=FALSE}
+head(touristCaloriesNetCountryByItem.11)
+```
 
-m49Code <- GetCodeList("agriculture", "agriculutre", "geographicAreaM49")[, code, description]
-setnames(m49Code, old = c("description", "code"), new = c("Country", "country"))
+The **Food Data** with **103 distincts countries** and **419 distincts commodities** are below:
 
-## Merge
-touristNetCaloriesData <- merge(touristCaloriesNetCountryByItem.11, m49Code, by = c("country"), all.x = T)
-touristNetCaloriesData <- merge(touristNetCaloriesData, cpcCode, by = c("item"), all.x = T)
+```{r, echo=FALSE}
+head(calorieConsumptionData.7.1)
+```
 
-touristNetCaloriesData[, c("tourismElement", "flagObservationStatus", "flagMethod") := NULL ]
+**Merging** these datasets:
 
-setnames(touristNetCaloriesData,
-         old = c("item", "country", "year", "calNetCountry", "Country", "Item"),
-         new = c("itemCode", "countryCode", "year", "netCalories", "country", "item"))
-
-
-foodData <- merge(calorieConsumptionData.7.1, m49Code, by = c("country"), all.x = T)
-foodData <- merge(foodData, cpcCode, by = c("item"), all.x = T)
-foodData[, c("item", "country") := NULL ]
-
-setnames(foodData,
-         old = c("year", "totalCal", "Country", "Item"),
-         new = c("year", "totalCalories", "country", "item"))
-
-setcolorder(foodData,
-            c("year", "country", "item", "totalCalories"))
-
+```{r, echo=FALSE}
 ## Merge Tourism data with food data
-testingTouristData <- merge(touristNetCaloriesData, foodData, 
+testingTouristData <- merge(touristCaloriesNetCountryByItem.11, calorieConsumptionData.7.1, 
       by = c("year", "country", "item"))
 
-## % tourism consumption per country and item
-testingTouristData[, percentCalories := netCalories/totalCalories]
+head(testingTouristData)
+```
 
+Now we can calculate **% tourism consumption** per country and per commoditie. 
+```{r, echo=FALSE}
+## % tourism consumption per country and item
+testingTouristData[, percentCalItemCountry := calNetCountry/totalCal]
+head(testingTouristData)
+```
+
+<<<<<<< HEAD
 #save(testingTouristData, file = "~/Github/faoswsTourist/Data/testingTouristData.RData")
 
 ## % consumption per country
+=======
+When the estimates for tourism consumption is **negative** it means that more people **left this country**. If is **positive**, it means more people **went** to this country.
+So we can calculate which countries were more impacted with tourism consumption and which one had less tourism consumption in 2012.
+>>>>>>> 61cac3eb259913904d96f0663cf3da4dfb726076
 
-tabCountry <- testingTouristData[, list(percentCaloriesCountry = sum(netCalories, na.rm=T)/sum(totalCalories, na.rm=T)),
-                   by = list(year, country, countryCode)]
+````{r, echo = FALSE}
+tabCountry1 <- testingTouristData[, list(percentCalCountry = sum(calNetCountry, na.rm=T)/sum(totalCal, na.rm=T)),
+                   by = list(year, country)]
+````
 
+<<<<<<< HEAD
 #save(tabCountry, file = "~/Github/faoswsTourist/Data/tabCountry.RData")
 
 mapData <- data.table(map_data(map = "world"))
 setnames(mapData, old = c("long", "lat", "group", "order", "region", "subregion"),
                           new = c("long", "lat", "group", "order", "country", "subregion"))
-
-
-mapData <- merge(mapData, tabCountry, by = "country", all.x = TRUE)
-mapData <- mapData %>% arrange(order)
-
-## Create a categorical variable
-mapData[, percentCat := ifelse(is.na(percentCaloriesCountry) == T, "Missing", 
-                               ifelse(percentCaloriesCountry > 0, "Receiver",
-                                      ifelse(percentCaloriesCountry < 0, "Emitter", "Neutro")))]
-
-mapData$percentCat <- factor(mapData$percentCat, 
-                             levels = c("Missing", "Emitter", "Neutro", "Receiver"))
-
-
-
+=======
+Summary of estimates tourism consumption:
+```{r, echo=FALSE}
+if(Sys.info()[7] == "rockc_000"){
+    load("~/GitHub/faoswsTourist/Data/tabCountry.RData")
+    tabCountry1 <- tabCountry
+    setnames(tabCountry1, "percentCaloriesCountry", "percentCalCountry")
+}
+summary(tabCountry1$percentCalCountry)
 ```
+>>>>>>> 61cac3eb259913904d96f0663cf3da4dfb726076
 
+**Top 5 positive** estimated consumption per country for tourism. **Bahamas (44)** and **Seychelles (690)** are the two firsts countries with more % tourism consumption.
+````{r, echo = FALSE}
+
+tabCountry1 <- tabCountry1[order(-tabCountry1$percentCalCountry)]
+tabCountry1[, rank := 1:nrow(tabCountry1)]
+head(tabCountry1, 5)
+````
+
+**Top 5 negative** estimated consumption per country for tourism. Note that **Albania (8)** has a strange number. It's necessary to check it.
+````{r, echo = FALSE}
+tail(tabCountry1, 5)
+````
+
+The decis are:
+```{r, echo=FALSE}
+quantile(tabCountry1$percentCalCountry, na.rm = T, 
+         probs = c(0:9)/10)
+```
+The histogram and BoxPlot are below:
 
 ```{r, echo=FALSE}
-p1 <- ggplot(mapData, aes(x=long, y=lat, group=group, fill=percentCat)) + 
-  geom_polygon() + #theme(legend.title=element_blank()) +
-  scale_fill_manual(values=c("#C0C0C0", "#D00000", "#fec666", "#667bc6")) +
-  theme(#line = element_blank(),
-        axis.ticks = element_blank(),
-        axis.text.x = element_blank(), 
-        axis.text.y = element_blank(),
-        #text = element_blank(),
-        title = element_blank())
-p1
+par(mfrow=c(1, 2))
+hist(tabCountry1$percentCalCountry, breaks = 100, xlab="% Tourism consumption", main = "")
+boxplot(tabCountry1$percentCalCountry)
+```
 
-````
+If we remove **Albania** this analyze, the new plots are:
+
+```{r, echo=FALSE}
+tabCountry1.1 <- tabCountry1[country != 8]
+par(mfrow=c(1, 2))
+hist(tabCountry1.1$percentCalCountry, xlab="% Tourism consumption", main = "")
+boxplot(tabCountry1.1$percentCalCountry)
+```
+
+With this data, we have this % below about tourism consumption.
+```{r, echo=FALSE}
+tabCountry1[, consumption := ifelse(percentCalCountry > 0, "positive",
+                                    ifelse(percentCalCountry < 0, "negative", "zero"))]
+t1 <- tabCountry1[, .N, consumption]
+t1[, percent := 100*round(N/sum(N), 3)]
+t1
+```
+
+```{r, echo = FALSE}
+## Load fao_world object
+load(url("https://github.com/UNFAOstatistics/gisfao/raw/master/data/fao_world.RData"))
+coords <- lapply(slot(fao_world, "polygons"), function(x){
+    lapply(slot(x, "Polygons"), function(y) slot(y, "coords"))
+})
+countryName <- fao_world$ADM0_NAME
+coords <- lapply(coords, function(x){
+    out = data.frame(do.call("rbind", x))
+    colnames(out) = c("longitude", "latitude")
+    out
+})
+coords <- lapply(1:length(coords), function(i){
+    coords[[i]]$country = as.character(countryName[i])
+    coords[[i]]
+})
+coords <- do.call("rbind", coords)
+ggplot(coords, aes(x = longitude, y = latitude, group = country)) +
+    geom_line()
+```
