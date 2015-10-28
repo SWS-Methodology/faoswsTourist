@@ -383,20 +383,29 @@ t1
 ```{r, echo = FALSE}
 ## Load fao_world object
 load(url("https://github.com/UNFAOstatistics/gisfao/raw/master/data/fao_world.RData"))
-coords <- lapply(slot(fao_world, "polygons"), function(x){
-    lapply(slot(x, "Polygons"), function(y) slot(y, "coords"))
-})
-countryName <- fao_world$ADM0_NAME
-coords <- lapply(coords, function(x){
-    out = data.frame(do.call("rbind", x))
-    colnames(out) = c("longitude", "latitude")
-    out
-})
-coords <- lapply(1:length(coords), function(i){
-    coords[[i]]$country = as.character(countryName[i])
-    coords[[i]]
-})
-coords <- do.call("rbind", coords)
-ggplot(coords, aes(x = longitude, y = latitude, group = country)) +
-    geom_line()
+# Install development version of ggplot2
+devtools::install_github("hadley/ggplot2")
+coords <- ggplot2:::fortify(fao_world)
+countryMap <- as.character(fao_world$ADM0_NAME)
+countryMap <- data.frame(id = 0:(length(countryMap)-1),
+                         country = countryMap)
+coords <- merge(coords, countryMap, by = "id", all = TRUE)
+coords <- merge(coords, tabCountry1, by = "country", all = TRUE)
+coords <- coords[order(coords$country, coords$piece, coords$order), ]
+coords[coords$percentCalCountry < -.5 & !is.na(coords$percentCalCountry), ]
+ggplot(coords, aes(x = long, y = lat, group = group)) +
+    geom_path() +
+    geom_polygon(aes(fill = percentCalCountry, group = group))
+
+coords <- ggplot2:::fortify(fao_world)
+countryMap <- as.character(fao_world$FAOST_CODE)
+countryMap <- data.frame(id = 0:(length(countryMap)-1),
+                         countryCode = countryMap)
+coords <- merge(coords, countryMap, by = "id", all = TRUE)
+coords <- merge(coords, tabCountry1, by = "countryCode", all = TRUE)
+coords <- coords[order(coords$country, coords$piece, coords$order), ]
+coords[coords$percentCalCountry < -.5 & !is.na(coords$percentCalCountry), ]
+ggplot(coords, aes(x = long, y = lat, group = group)) +
+    geom_path() +
+    geom_polygon(aes(fill = percentCalCountry, group = group))
 ```
