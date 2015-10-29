@@ -113,6 +113,7 @@ consumptionData.2.1$totDayVisNum[is.na(consumptionData.2.1$totDayVisNum)] <- 0
 ## and from each country
 touristOverNightData.3 <- merge(touristData.1, consumptionData.2.1, by=c("dest", "year"), all.x = TRUE)
 
+
 ## rearrange the column order to make it easier to view
 touristOverNightData.3 <- setcolorder(touristOverNightData.3, neworder = c("year", "orig", "dest", "onVisNum",
                                          "onVisDays", "totDayVisNum"))
