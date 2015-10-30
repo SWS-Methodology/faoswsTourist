@@ -22,6 +22,8 @@ library(faoswsUtil)
 library(ggplot2)
 library(countrycode)
 library(scales)
+library(VennDiagram)
+
 ```
 
 ```{r include=FALSE, cache=FALSE}
@@ -271,9 +273,9 @@ caloriesCommoditiesTourist.10[, calNetCountry := daysNet * calPerPersonPerDay]
 consumpCal <- caloriesCommoditiesTourist.10[, list(totalCal = sum(totalCal),
                                      totalCalOutCountry = sum(calOutCountry),
                                      totalCalInCountry = sum(calInCountry),
-                                     totalCalNetCountry = sum(calNetCountry)),
+                                     totalCalNetCountry = sum(calNetCountry),
+                                     pop = max(pop)),
                               by = list(country, year)]
-
 
 ## Get rid of some of the columns that we don't need anymore:
 
@@ -441,7 +443,10 @@ consumpCal <- merge(consumpCal, m49Code, by="country", all.x = T)
 ## Let's divide in 2 parts and then to make rbind to join again
 
 # Just countries with value for consumption
-consumpCal.1 <- consumpCal[is.na(totalCalOutCountry) != T & is.na(totalCalInCountry) != T]
+#consumpCal.1 <- consumpCal[is.na(totalCalOutCountry) != T & is.na(totalCalInCountry) != T]
+
+consumpCal.1 <- consumpCal[is.na(totalCalNetCountry) != T & is.na(totalCalInCountry) != T & is.na(totalCalOutCountry) != T & 
+             totalCalInCountry != 0 & totalCalOutCountry != 0]
 
 consumpCal.1[, clusterCountry := ifelse(percentcalOut < sum(totalCalOutCountry, na.rm=T)/sum(totalCal, na.rm=T) & 
                                         percentcalIn < sum(totalCalInCountry, na.rm=T)/sum(totalCal, na.rm=T), "Isolated",
@@ -454,7 +459,8 @@ consumpCal.1[, clusterCountry := ifelse(percentcalOut < sum(totalCalOutCountry, 
                                                            "Missing"))))]
 
 # Just countries with NA for consumption IN or OUT
-consumpCal.2 <- consumpCal[is.na(totalCalOutCountry) == T | is.na(totalCalInCountry) == T]
+consumpCal.2 <- consumpCal[is.na(totalCalOutCountry) == T | is.na(totalCalInCountry) == T | totalCalInCountry == 0]
+
 consumpCal.2[, clusterCountry := "Missing"]
 
 ## Rbind this datasets
@@ -505,17 +511,17 @@ For our first visualization, we divided the countries in five clusters.
 
 **Missing**: countries with no data for tourist consumption.
 
-There are information for 74 countries (39.5%) and the others countries are missing data.
+There are information for 70 countries (37.4%) and the others countries are missing data.
 
 According to a cluster, we have:
 
 **Cluster** | **Countries %**
 ------------- | -------------
-Receiver      |    3.7%
+Receiver      |    4.8%
 Emitter       |    4.3% 
-Transit       |    12.3%
-Isolated      |    19.2% 
-Missing       |    60.5%
+Transit       |    10.7%
+Isolated      |    17.6% 
+Missing       |    62.6%
 
 
 ````{r, echo=FALSE}
@@ -643,7 +649,7 @@ Country     | % Net Tourist Consumption
 ## Countries less impacted by Tourist Consumption
 
 ````{r include=FALSE, cache=FALSE}
-consumpCal <- consumpCal[order(-consumpCal$percentNet)]
+consumpCal <- consumpCal[order(consumpCal$percentNet)]
 ````
 
 These countries are the less impacted by tourist consumption. It means that more people left these countries than went to these countries.
@@ -655,4 +661,70 @@ Country     | % Net Tourist Consumption
  Republic of Moldova     |         - 2.7%
  Switzerland             |         - 2.6% 
  Kuwait                  |         - 2.2%
+
+
+## Tourist consumption for the 5 biggest countries by population
+
+````{r include=FALSE, cache=FALSE}
+consumpCal <- consumpCal[order(-consumpCal$pop)]
+````
+
+Country   |Population (million) | % Net Tourist Consumption
+----------- | -----|--------
+ United States of America                 |         317.5| -0.03%
+ Brazil       |         198.8|0.04%
+ Pakistan     |         179.1|-0.001%
+ Nigeria             |         168.8|-0.02% 
+ Russian Federation(1992-)                  |         143.1|-0.14%
+
+## Tourist consumption for the 5 smallest countries by population
+
+According to a table below, the 5 smallest countries has positive net tourist consumption.
+
+
+Country   |Population (million) | % Net Tourist Consumption
+----------- | -----|--------
+ Saint Kitts and Nevis                 |         54| 3.38%
+ Bermuda       |         65|4.33%
+ Seychelles     |         92|5.04%
+ Grenada             |         105|2.02% 
+ Saint Vincent and the Grenadines                  |         109|1.31%
+
+
+
+
+
+
+## Data 
+
+The table above show the number of countries in each dataset.
+
+DataSet     | Numbe of Countries
+--------------------- | -------------
+ Tourist Flow     |         144
+ Food Data |         103 
+ Tourist Flow & Food Data   |         70
+
+
+````{r include=FALSE, cache=FALSE}
+options(warn=-1)
+## Number of countries with  tourist flow data : #144
+#length(unique(tourismDays.6[year == 2012 & is.na(daysNet) != T & daysIn != 0 & daysOut != 0 &  
+ #                             is.na(daysIn) != T & is.na(daysOut) != T])$country)
+
+## Number of countries with food data? # 103
+#calorieConsumptionData.7.1[, list(length(unique(country))),
+ #                          by = list(year)]
+
+## Number of countries with 2 information
+
+#consumpCal[is.na(totalCalNetCountry) != T & is.na(totalCalInCountry) != T & is.na(totalCalOutCountry) != T & 
+ #            totalCalInCountry != 0 & totalCalOutCountry != 0]
+
+
+grid.newpage()
+draw.pairwise.venn(144, 103, 70, category = c("Tourist Flow Data", "Food Data"), lty = rep("blank", 
+                                                                                   2), fill = c("skyblue", "orange"), alpha = rep(0.5, 2),cat.pos = c(0,0), cat.dist = rep(0.025, 2))
+
+````
 
