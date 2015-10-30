@@ -5,9 +5,12 @@ date: "28 October 2015"
 output: pdf_document
 ---
 
-In this document there are some statistics and summaries about the **Tourist Module**.
+# About this document
+
+In this document there are some statistics and summaries about the **Tourist Module** in 2012.
 
 We need to compare the estimates for tourism consumption of **Tourist Module** for all the countries and the commodities with **Food Data**.
+
 
 ```{r include=FALSE, cache=FALSE}
 ## Load required functions
@@ -486,17 +489,34 @@ coords2$clusterCountry <- factor(coords2$clusterCountry,
 countriesNames <- coords2
 ````
 
+## Segmentation of the world according to a tourist consumption
+
+
 For our first visualization, we divided the countries in five clusters.
 
-**Isolated**: countries with both % of consumption inside and outside under the average consumption of tourists. 
-
-**Emitter**: countries with % inside of consumption tourists under the average and % consumption outside over the average.
 
 **Receiver**: countries with % outside of consumption tourists under the average and % consumption inside over the average.
 
+**Emitter**: countries with % inside of consumption tourists under the average and % consumption outside over the average.
+
 **Transit**: countries with both % of consumption inside and outside over the average consumption of tourists. 
 
+**Isolated**: countries with both % of consumption inside and outside under the average consumption of tourists. 
+
 **Missing**: countries with no data for tourist consumption.
+
+There are information for 74 countries (39.5%) and the others countries are missing data.
+
+According to a cluster, we have:
+
+**Cluster** | **Countries %**
+------------- | -------------
+Receiver      |    3.7%
+Emitter       |    4.3% 
+Transit       |    12.3%
+Isolated      |    19.2% 
+Missing       |    60.5%
+
 
 ````{r, echo=FALSE}
 options(warn=-1)
@@ -513,30 +533,40 @@ ggplot(coords2, aes(x=long, y=lat, group=group, fill=clusterCountry)) +
         title = element_blank())
 ````
 
-Above there are some statistics about the **Net Tourist Consumption** estimated by Tourist Module.
+
+## Summaries
+
+
+Above there are some statistics about the **Net Tourist Consumption** estimated by **Tourist Module**.
 
 Note that when the estimates for tourist consumption is **negative** it means that more people **left this country**. If is **positive**, it means that more people **went** to this country.
 
-So we can calculate which countries were more impacted with tourism consumption and which one had less tourism consumption in 2012.
+Statistics | Values
+------------- | -------------
+ Min       | - 67%
+ Mean      | - 0.5% 
+ Max       |  6.3%
+
+
+This result it means that the country more impacted with the tourist consumption had 6.3% of your production
+consumed by tourists. About the minimum value, we need to investigate what is happening.
+
+So we can calculate which countries were more impacted with the tourist consumption and which one had less tourist consumption in 2012.
 ````{r include=FALSE, cache=FALSE}
 consumpCal <- data.table(consumpCal)
 consumpCal[, percentNet := totalCalNetCountry/totalCal]
 #100*summary(consumpCal$percentNet)
 ````
 
-* Min: - 67%
-* Mean: - 0.5%
-* Max: 6.3%
+The histogram above is about the net food consumption % of tourists. Note that there is just one country (**Albania**) with the strange negative value.
 
-The histogram above is about the tourist % net food consumption. Note that there is just one country (**Albania**) with the strange value.
 
 ````{r, echo=FALSE}
-hist(100*consumpCal$percentNet, breaks = 100, xlab = "Tourist % Netconsumption", main="")
+hist(100*consumpCal$percentNet, breaks = 100, xlab = "Net Food Consumption % of Tourists", main="")
 ````
 
-Let's check the number of tourists flow from Albania in 2010, 2011 and 2012.
-This plot show the tourist flow growth percentage from 5 countries in 3 years. So,
-we can see that is no make sense the values for Albania.
+Let's check the **overnight visitor numbers** from 5 regions that had higher growth from 2010 to 2012.
+So, we can see that is no make sense the values for **Albania**.
 
 ````{r, echo=FALSE}
 touristFlow <- touristData.1[, list(totOnVisNum = sum(onVisNum)),
@@ -557,7 +587,7 @@ top5TouristFlow$Country <- factor(top5TouristFlow$Country,
 
 ````
 
-````{r, echo=FALSE}
+````{r, echo=FALSE, fig.width=6, fig.height=3}
 
 space <- function(x, ...) { 
   format(x, ..., big.mark = ",", scientific = FALSE, trim = TRUE)
@@ -580,10 +610,10 @@ theme_fao <- function(angle=90, fonte="calibri", size=14) {
 p <- ggplot(data=top5TouristFlow, aes(x=as.factor(Country), y=percentIncreasing, 
                                       fill=as.factor(Country))) + 
   geom_bar(aes(), stat = "identity", position=position_dodge()) + 
-  #scale_y_continuous(labels = space) +
-  theme(legend.position="none") +  ylab('growth %') + xlab('country') + 
+  scale_y_continuous(labels = space) +
+  theme(legend.position="none") +  ylab('growth %') + xlab('') + 
   #theme_fao(45) +
-  annotate("text", x = 1, y = 20000, label = "46,000%") +
+  annotate("text", x = 1, y = 10000, label = "46,000%") +
   annotate("text", x = 2, y = 10000, label = "1,680%") +
   annotate("text", x = 3, y = 10000, label = "226%") +
   annotate("text", x = 4, y = 10000, label = "208%") +
@@ -591,3 +621,38 @@ p <- ggplot(data=top5TouristFlow, aes(x=as.factor(Country), y=percentIncreasing,
 p
 
 ````
+
+
+## Countries more impacted by Tourist Consumption
+
+````{r include=FALSE, cache=FALSE}
+consumpCal <- consumpCal[order(-consumpCal$percentNet)]
+````
+
+Into some small islands states which are popular holiday destinations, such as the Bahamas or Seychelles, the Tourist Consumption can constituite a significant part in the uses of food products. 
+
+Country     | % Net Tourist Consumption
+--------------------- | -------------
+ Bahamas    |         6.3%
+ Seychelles |         5% 
+ Barbados   |         4.6%
+ Bermuda    |         4.3% 
+ Cyprus     |         4%
+
+
+## Countries less impacted by Tourist Consumption
+
+````{r include=FALSE, cache=FALSE}
+consumpCal <- consumpCal[order(-consumpCal$percentNet)]
+````
+
+These countries are the less impacted by tourist consumption. It means that more people left these countries than went to these countries.
+
+Country     | % Net Tourist Consumption
+----------- | -------------
+ Albania                 |         - 67%
+ Brunei Darussalam       |         - 5.8% 
+ Republic of Moldova     |         - 2.7%
+ Switzerland             |         - 2.6% 
+ Kuwait                  |         - 2.2%
+
