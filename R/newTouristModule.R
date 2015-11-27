@@ -184,21 +184,24 @@ countryCodeDim1 <- Dimension(name = "geographicAreaM49",
 foodCodeDim2 <- Dimension(name = "measuredElement", keys = c(foodCode))
 itemCPCDim3 <- Dimension(name = "measuredItemCPC", keys = itemCodes)
 timePointYearsDim4 <- Dimension(name = "timePointYears", keys = yearRange)
-calorieConsumptionKey <- DatasetKey(domain = "agriculture", dataset = "agriculture",
+foodConsumptionKey <- DatasetKey(domain = "agriculture", dataset = "agriculture",
                   dimensions = list(countryCodeDim1, foodCodeDim2, itemCPCDim3, timePointYearsDim4))
 
 ## download the calorie consumption data from the SWS
-calorieConsumptionData.7 <- GetData(calorieConsumptionKey, flags = FALSE)
+foodConsumptionData.7 <- GetData(foodConsumptionKey, flags = FALSE)
 
-calorieConsumptionData.7.1 <- dcast.data.table(calorieConsumptionData.7,
+foodConsumptionData.7.1 <- dcast.data.table(foodConsumptionData.7,
                           geographicAreaM49 + measuredItemCPC + timePointYears ~ measuredElement,
                           value.var = "Value")
 
 ## set the column names to small simple ones representing destination cuntry, database
 ## element, year and total calories
-setnames(calorieConsumptionData.7.1, old = c("geographicAreaM49", "measuredItemCPC", "timePointYears", "5141"),
-         new = c("country", "item", "year", "totalCal"))
+setnames(foodConsumptionData.7.1, old = c("geographicAreaM49", "measuredItemCPC", "timePointYears", "5141"),
+         new = c("country", "item", "year", "totalFood"))
 
+# Pull calories data from each item using getNutrientConversionFactors function
+
+foodConsumptionData.7.1[, valueCal := getNutrientConversionFactors(country, item)]
 
 ## Pull the population datasets
 
@@ -224,36 +227,36 @@ setnames(popData.8.1, old = c("geographicAreaM49", "timePointYears", "21"),
 
 ## Merge population data with food data
 
-setkey(calorieConsumptionData.7.1, "country", "year")
+setkey(foodConsumptionData.7.1, "country", "year")
 setkey(popData.8.1, "country", "year")
 
-calorieConsumptionPopData.9 <- merge(calorieConsumptionData.7.1, popData.8.1, by = c("country", "year"), 
+foodConsumptionPopData.9 <- merge(foodConsumptionData.7.1, popData.8.1, by = c("country", "year"), 
                all.x = TRUE )
 
 ## compute total calories per person per day in orig country
 ## Population is in 1000s
-calorieConsumptionPopData.9[, calPerPersonPerDay := totalCal / 365 / (pop * 1000)]
+foodConsumptionPopData.9[, calPerPersonPerDay := (totalFood * valueCal * 10000) / 365 / (pop * 1000)]
 
 ## merge data8 and data5 to allow calculation of calories 
 ## by commodity per year for who goes to the country and who left  
 
 setkey(tourismDays.6, "country", "year")
-setkey(calorieConsumptionPopData.9, "country", "year")
+setkey(foodConsumptionPopData.9, "country", "year")
 
-caloriesCommoditiesTourist.10 <- merge(calorieConsumptionPopData.9, tourismDays.6, by = c("country", "year"), 
+foodTouristConsumption.10 <- merge(foodConsumptionPopData.9, tourismDays.6, by = c("country", "year"), 
       all.x = T)
 
-caloriesCommoditiesTourist.10[, calOutCountry := daysOut * calPerPersonPerDay]
-caloriesCommoditiesTourist.10[, calInCountry := daysIn * calPerPersonPerDay]
-caloriesCommoditiesTourist.10[, calNetCountry := daysNet * calPerPersonPerDay]
+foodTouristConsumption.10[, calOutCountry := daysOut * calPerPersonPerDay]
+foodTouristConsumption.10[, calInCountry := daysIn * calPerPersonPerDay]
+foodTouristConsumption.10[, calNetCountry := daysNet * calPerPersonPerDay]
 
 ## Get rid of some of the columns that we don't need anymore:
 
-caloriesCommoditiesTourist.10[, c("totalCal", "pop", "calPerPersonPerDay", "daysOut", 
+foodTouristConsumption.10[, c("totalFood", "pop", "valueCal", "calPerPersonPerDay", "daysOut", 
           "daysIn", "daysNet") := NULL]
 
 ## Net calories
-touristCaloriesNetCountryByItem.11 <- caloriesCommoditiesTourist.10[ , list(calNetCountry),
+touristCaloriesNetCountryByItem.11 <- foodTouristConsumption.10[ , list(calNetCountry),
                                           by = list(year, country, item) ]
 
 touristCaloriesNetCountryByItem.11[, tourismElement:= "100"]
