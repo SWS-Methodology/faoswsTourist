@@ -1,7 +1,8 @@
-getNutrientConversionFactors <- function(data=data) {
+getNutrientConversionFactors <- function(country, item) {
     
+    data=data.table(country=country, item=item)
     ## Data Quality Checks
-    stopifnot(sum(names(data) %in% c("country", "item")) == 2)
+    #stopifnot(sum(names(data) %in% c("country", "item")) == 2)
     
     ## Pulling calories Data
     geographiCal <- GetCodeList("agriculture", "aupus_ratio", dimension = "geographicAreaM49")
@@ -63,8 +64,7 @@ getNutrientConversionFactors <- function(data=data) {
     #length(unique(data2[is.na(valueCal)]$item))
     data2.1 <- data2[is.na(valueCal) != T] # save this dataset
     
-    setcolorder(data2.1, c("country", "item", "year", "tonnesFood", 
-                           "itemCPC", "valueCal"))
+    setcolorder(data2.1, c("country", "item", "itemCPC", "valueCal"))
     
     # merge 3
     data3 <- data2[is.na(valueCal) == T]
@@ -76,10 +76,9 @@ getNutrientConversionFactors <- function(data=data) {
     
     data3[, valueCal := ifelse(is.na(valueCal), 0, valueCal)] # save this dataset
     
-    setcolorder(data3, c("country", "item", "year", "tonnesFood", 
-                         "itemCPC", "valueCal"))
+    setcolorder(data3, c("country", "item", "itemCPC", "valueCal"))
     
     # rbind
     data <- rbind(data1, data2.1, data3)
-    return(data)
+    return(data$valueCal)
 }
