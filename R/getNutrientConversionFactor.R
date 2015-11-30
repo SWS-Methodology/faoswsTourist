@@ -1,6 +1,6 @@
 getNutrientConversionFactors <- function(country, item) {
     
-    data=data.table(country=country, item=item)
+    data=data.table(country=country, item=item, index=1:length(country))
     ## Data Quality Checks
     #stopifnot(sum(names(data) %in% c("country", "item")) == 2)
     
@@ -64,7 +64,7 @@ getNutrientConversionFactors <- function(country, item) {
     #length(unique(data2[is.na(valueCal)]$item))
     data2.1 <- data2[is.na(valueCal) != T] # save this dataset
     
-    setcolorder(data2.1, c("country", "item", "itemCPC", "valueCal"))
+    setcolorder(data2.1, c("country", "item", "index", "itemCPC", "valueCal"))
     
     # merge 3
     data3 <- data2[is.na(valueCal) == T]
@@ -76,9 +76,10 @@ getNutrientConversionFactors <- function(country, item) {
     
     data3[, valueCal := ifelse(is.na(valueCal), 0, valueCal)] # save this dataset
     
-    setcolorder(data3, c("country", "item", "itemCPC", "valueCal"))
+    setcolorder(data3, c("country", "item", "index", "itemCPC", "valueCal"))
     
     # rbind
     data <- rbind(data1, data2.1, data3)
+    data <- data[order(data$index)]
     return(data$valueCal)
 }
