@@ -32,13 +32,13 @@ yearRange <- as.character(yearRange)
 
 ## set the keys to get the calorie consumption, by individual FBS commodity for
 ## each country from the FAO working system
-foodAreaCodes <- faosws::GetCodeList("agriculture", "agriculture", "geographicAreaM49")
+foodAreaCodes <- faosws::GetCodeList("agriculture", "aproduction", "geographicAreaM49")
 foodElementCodes <- faosws::GetCodeList("suafbs", "fbs", "measuredElementSuaFbs")
 
 ## the Item codes contain a hierarchy.  We need to determine all the child
 ## nodes of the hierarchy and add them to get total consumption.
-oldAreaCodes <- GetCodeList("agriculture", "agriculture", "geographicAreaM49")
-itemCodes <- GetCodeList("agriculture", "agriculture", "measuredItemCPC")[, code]
+oldAreaCodes <- GetCodeList("agriculture", "aproduction", "geographicAreaM49")
+itemCodes <- GetCodeList("agriculture", "aproduction", "measuredItemCPC")[, code]
 
 ## Pull the supply utilization account(SUA) food balance sheet (FBS) data from
 ## SWS pertaining to calorie consumption from each commodity in each country
@@ -48,7 +48,7 @@ countryCodeDim1 <- Dimension(name = "geographicAreaM49",
 foodCodeDim2 <- Dimension(name = "measuredElement", keys = c(foodCode))
 itemCPCDim3 <- Dimension(name = "measuredItemCPC", keys = itemCodes)
 timePointYearsDim4 <- Dimension(name = "timePointYears", keys = yearRange)
-foodConsumptionKey <- DatasetKey(domain = "agriculture", dataset = "agriculture",
+foodConsumptionKey <- DatasetKey(domain = "agriculture", dataset = "aproduction",
                                  dimensions = list(countryCodeDim1, foodCodeDim2, itemCPCDim3, timePointYearsDim4))
 
 ## download the calorie consumption data from the SWS
