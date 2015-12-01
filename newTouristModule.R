@@ -16,7 +16,8 @@ if(!exists("DEBUG_MODE") || DEBUG_MODE == ""){
 
 }
 
-source("~/Github/faoswsTourist/R/getNutrientConversionFactor.R")
+files = dir("~/Github/faoswsTourist/R", full.names = TRUE)
+sapply(files, source)
 
 ## set the year range to pull data from the SWS
 swsContext.computationParams$startYear <- as.numeric(swsContext.computationParams$startYear)
