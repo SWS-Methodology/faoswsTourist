@@ -238,11 +238,11 @@ touristOverNightData.7.2[, baselineCalDayOrigCountry := ifelse(is.na(baselineCal
 touristOverNightData.7.2[, baselineCalDayDestCountry := NULL]
 
 ## calculate total visitor days per year who leaves your country using the baseline
-daysOut.8 <- touristOverNightData.7.2[, list(daysOut = sum(totVisDays * baselineCalDayOrigCountry)),
+daysOut.8 <- touristOverNightData.7.2[, list(daysOut = sum(totVisDays * baselineCalDayOrigCountry, na.rm=T)),
                                       by = c('orig', 'year')]
 
 ## calculate total visitor days per year who comes to the country
-daysIn.9 <- touristOverNightData.7.2[, list(daysIn = sum(totVisDays * baselineCalDayOrigCountry)),
+daysIn.9 <- touristOverNightData.7.2[, list(daysIn = sum(totVisDays * baselineCalDayOrigCountry, na.rm=T)),
                                      by = c('dest', 'year')]
 
 ## change column name from "orig" to "country"
