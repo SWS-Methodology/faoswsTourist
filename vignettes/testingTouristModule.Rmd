@@ -1,7 +1,7 @@
 ---
-title: "Testing Tourist Module"
+title: "Tourist Module"
 author: "Bruno Caetano Vidigal"
-date: "28 October 2015"
+date: "1 February 2016"
 output: pdf_document
 ---
 
@@ -23,6 +23,7 @@ library(ggplot2)
 library(countrycode)
 library(scales)
 library(VennDiagram)
+library(knitr)
 
 ```
 
@@ -30,19 +31,105 @@ library(VennDiagram)
 
 foodCode = "5141"
 
-# 1. Pull in tourist data
-
 DEBUG_MODE = Sys.getenv("R_DEBUG_MODE")
 R_SWS_SHARE_PATH = Sys.getenv("R_SWS_SHARE_PATH")
 
 if(!exists("DEBUG_MODE") || DEBUG_MODE == ""){
   token = "41558a20-c419-4821-8288-2dc7ccbc5ecf"
   GetTestEnvironment("https://hqlqasws1.hq.un.fao.org:8181/sws",token)
-  
+
 }
 
-## set the keys to get the tourist data from the FAO working system
+files = dir("~/Github/faoswsTourist/R", full.names = TRUE)
+sapply(files, source)
 
+## set the year range to pull data from the SWS
+swsContext.computationParams$startYear <- as.numeric(swsContext.computationParams$startYear)
+swsContext.computationParams$endYear <- as.numeric(swsContext.computationParams$endYear)
+if(swsContext.computationParams$startYear > swsContext.computationParams$endYear)
+    stop("First Year should be smallest than End Year")
+## yearRange <- swsContext.datasets[[1]]@dimensions$timePointYears@keys
+yearRange <- swsContext.computationParams$startYear:swsContext.computationParams$endYear
+yearRange <- as.character(yearRange)
+
+# Step 1: Pull the food consumption
+
+## set the keys to get the calorie consumption, by individual FBS commodity for
+## each country from the FAO working system
+foodAreaCodes <- faosws::GetCodeList("agriculture", "aproduction", "geographicAreaM49")
+foodElementCodes <- faosws::GetCodeList("suafbs", "fbs", "measuredElementSuaFbs")
+
+## the Item codes contain a hierarchy.  We need to determine all the child
+## nodes of the hierarchy and add them to get total consumption.
+oldAreaCodes <- GetCodeList("agriculture", "aproduction", "geographicAreaM49")
+itemCodes <- GetCodeList("agriculture", "aproduction", "measuredItemCPC")[, code]
+
+## Pull the supply utilization account(SUA) food balance sheet (FBS) data from
+## SWS pertaining to calorie consumption from each commodity in each country
+countryCodeDim1 <- Dimension(name = "geographicAreaM49",
+                             keys = oldAreaCodes[type == "country", code])
+## A bit hackish: get population from total calories and total calories/person/day
+foodCodeDim2 <- Dimension(name = "measuredElement", keys = c(foodCode))
+itemCPCDim3 <- Dimension(name = "measuredItemCPC", keys = itemCodes)
+timePointYearsDim4 <- Dimension(name = "timePointYears", keys = yearRange)
+foodConsumptionKey <- DatasetKey(domain = "agriculture", dataset = "aproduction",
+                                 dimensions = list(countryCodeDim1, foodCodeDim2, itemCPCDim3, timePointYearsDim4))
+
+## download the calorie consumption data from the SWS
+foodConsumptionData.1 <- GetData(foodConsumptionKey, flags = FALSE)
+
+foodConsumptionData.1.1 <- dcast.data.table(foodConsumptionData.1,
+                                            geographicAreaM49 + measuredItemCPC + timePointYears ~ measuredElement,
+                                            value.var = "Value")
+
+## set the column names to small simple ones representing destination cuntry, database
+## element, year and total calories
+setnames(foodConsumptionData.1.1, old = c("geographicAreaM49", "measuredItemCPC", "timePointYears", "5141"),
+         new = c("country", "item", "year", "totalFood"))
+
+# Pull calories data from each item using getNutrientConversionFactors function
+foodConsumptionData.1.1[, valueCal := getNutrientConversionFactors(country, item)]
+
+## Step 2: Pull the population datasets
+countryCodePopDim1 <- Dimension(name = "geographicAreaM49",
+                                keys = oldAreaCodes[type == "country", code])
+elementPopDim2 <- Dimension(name = "measuredElementPopulation", keys = c("21"))
+timePointYearsDim3 <- Dimension(name = "timePointYears", keys = yearRange)
+popKey <- DatasetKey(domain = "population", dataset = "population",
+                     dimensions = list(countryCodePopDim1, elementPopDim2, timePointYearsDim3))
+
+## download the population data from the SWS
+popData.2 <- GetData(popKey, flags = FALSE)
+
+popData.2.1 <- dcast.data.table(popData.2,
+                                geographicAreaM49 + timePointYears ~ measuredElementPopulation,
+                                value.var = "Value")
+
+## set the column names to small simple ones representing destination cuntry, 
+##  year and total population
+setnames(popData.2.1, old = c("geographicAreaM49", "timePointYears", "21"),
+         new = c("country", "year", "pop"))
+
+## Merge population data with food data
+setkey(foodConsumptionData.1.1, "country", "year")
+setkey(popData.2.1, "country", "year")
+
+foodConsumptionPopData.3 <- merge(foodConsumptionData.1.1, popData.2.1, by = c("country", "year"), 
+                                  all.x = TRUE )
+
+## compute total calories per person per day in orig country
+## Population is in 1000s
+foodConsumptionPopData.3[, calPerPersonPerDay := (totalFood * valueCal * 10000) / 365 / (pop * 1000)]
+
+## Compute the calorie consumption per country, per person and per day
+calorieCountryDay.4 <- foodConsumptionPopData.3[, list(totalCalDay = sum(calPerPersonPerDay, na.rm=T)),
+                                                by=list(country)]
+
+## Let's to create the baseline consumption level (2500 calories per person per day).
+calorieCountryDay.4[, baselineCalDay:= totalCalDay/2500]
+
+## Step 3: Pull the tourist data
+## set the keys to get the tourist data from the FAO working system
 destinationAreaCodes <- faosws::GetCodeList("tourism", "tourist_flow",
                                             "destinationCountryM49")
 
@@ -52,29 +139,15 @@ originAreaCodes <- faosws::GetCodeList("tourism", "tourist_flow",
 tourismElementCodes <- faosws::GetCodeList("tourism", "tourist_consumption",
                                            "tourismElement")
 
-## set the year range to pull data from the SWS
-
-swsContext.computationParams$startYear <- as.numeric(swsContext.computationParams$startYear)
-swsContext.computationParams$endYear <- as.numeric(swsContext.computationParams$endYear)
-if(swsContext.computationParams$startYear > swsContext.computationParams$endYear)
-  stop("First Year should be smallest than End Year")
-## yearRange <- swsContext.datasets[[1]]@dimensions$timePointYears@keys
-yearRange <- swsContext.computationParams$startYear:swsContext.computationParams$endYear
-yearRange <- as.character(yearRange)
-
-
 ##Pull the bidirectional movement data from SWS pertaining to tourist visitors
 ##to all countries
-
 destinationCountryDim1 <- Dimension(name = "destinationCountryM49",
                                     keys = destinationAreaCodes[, code])
-
 
 originCountryDim2 <- Dimension(name = "originCountryM49",
                                keys = originAreaCodes[, code])
 
 tourismElementDim3 <- Dimension(name = "tourismElement", keys = ("60"))
-
 timePointYearsDim4 <- Dimension(name = "timePointYears", keys = yearRange)
 
 touristKey <- DatasetKey(domain = "tourism", dataset = "tourist_flow",
@@ -82,20 +155,20 @@ touristKey <- DatasetKey(domain = "tourism", dataset = "tourist_flow",
                                            tourismElementDim3, timePointYearsDim4))
 
 ## download the first tourist data from the SWS
+touristData.5 <- GetData(touristKey, flags = FALSE)
 
-touristData.1 <- GetData(touristKey, flags = FALSE)
-
-#cat("Tourist data loaded with ", nrow(touristData.1), " rows.")
+cat("Tourist data loaded with ", nrow(touristData.5), " rows.")
 
 ## remove the tourismElement column which is of no value to me here
-touristData.1 <- touristData.1[, which(!grepl("tourism", colnames(touristData.1))), with=FALSE]
+touristData.5 <- touristData.5[, which(!grepl("tourism", colnames(touristData.5))), 
+                               with=FALSE]
 
 ## change column names to small simple ones representing destination, origin,
 ## year and overnight visitor number
-setnames(touristData.1, old = colnames(touristData.1), new = c("dest", "orig", "year", "onVisNum"))
+setnames(touristData.5, old = c("destinationCountryM49", "originCountryM49", "timePointYears", "Value"), 
+         new = c("dest", "orig", "year", "onVisNum"))
 
-# 2. Pull in consumption data
-
+# Step 4: Pull the tourist consumption data
 ## set the keys to get the tourist data from the FAO working system
 touristAreaCodes = faosws::GetCodeList("tourism", "tourist_consumption",
                                        "geographicAreaM49")
@@ -109,226 +182,151 @@ consumptionKey = DatasetKey(domain = "tourism", dataset = "tourist_consumption",
                             dimensions = list(consumptionCountryDim1, consumptionElementDim2, timePointYearsDim3))
 
 ## download the bi-direction tourism data from the SWS
-consumptionData.2 <- GetData(consumptionKey, flags = FALSE)
+consumptionData.6 <- GetData(consumptionKey, flags = FALSE)
 
 ## set the column names to small simple ones representing destination, database
 ## element, year and value
-setnames(consumptionData.2, old = colnames(consumptionData.2), new = c("dest", "element", "year", "value"))
+setnames(consumptionData.6, old = c("geographicAreaM49", "tourismElement", "timePointYears", "Value"), 
+         new = c("dest", "element", "year", "value"))
 
-# 3. Calculate tourists leaving/coming to country A, B, ...
+# Step 5: Calculate tourists leaving/coming to country A, B, ...
 
 ## cast the data table to get it in long format
-consumptionData.2.1 <- as.data.table(dcast(consumptionData.2, dest + year ~ element))
+consumptionData.6.1 <- as.data.table(dcast(consumptionData.6, dest + year ~ element))
 
 ## change the column names to something readable, "onVisDays" stands for the
 ## mean number of days that overnight visitors stayed in the destination country.
 ## "totDayVisNum" is the number of people who visited the country but for a
 ## single day, e.g. from a cruise ship
-setnames(consumptionData.2.1, old = colnames(consumptionData.2.1), new = c("dest", "year", "onVisDays",
-                                                                           "totDayVisNum"))
+setnames(consumptionData.6.1, old = c("20", "30"), 
+         new = c("onVisDays", "totDayVisNum"))
 
 ## replace missing day visitor numbers (NA) with zero, because it won't effect
 ## end calculations, but NA's cause equations to fail
-consumptionData.2.1$totDayVisNum[is.na(consumptionData.2.1$totDayVisNum)] <- 0
+consumptionData.6.1$totDayVisNum[is.na(consumptionData.6.1$totDayVisNum)] <- 0
 
 ## merge the two data sets, one containing overnight visitor numbers and number
 ## of days they visited, the other data set the number of tourists travelling to
 ## and from each country
-touristOverNightData.3 <- merge(touristData.1, consumptionData.2.1, by=c("dest", "year"), all.x = TRUE)
+touristOverNightData.7 <- merge(touristData.5, consumptionData.6.1, 
+                                by=c("dest", "year"), all.x = TRUE)
 
 ## rearrange the column order to make it easier to view
-touristOverNightData.3 <- setcolorder(touristOverNightData.3, neworder = c("year", "orig", "dest", "onVisNum",
+touristOverNightData.7 <- setcolorder(touristOverNightData.7, neworder = c("year", "orig", "dest", "onVisNum",
                                                                            "onVisDays", "totDayVisNum"))
 
 ## a small number of countries are missing values for overnight visitor days,
 ## "onVisDays" and this affects the bi-directional calculations for them, but
 ## also all of the other countries as well, so this imputes the missing number
 ## of days, by taking the mean of all day numbers present, grouped by year.
-touristOverNightData.3[, onVisDays := ifelse(is.na(onVisDays), mean(onVisDays, na.rm=TRUE),
+touristOverNightData.7[, onVisDays := ifelse(is.na(onVisDays), mean(onVisDays, na.rm=TRUE),
                                              onVisDays), by = year]
 
 ## calculate the total number tourist visitor days, the product of overnight
 ## visitor number and days per visit
-touristOverNightData.3[, onVisTotDays := onVisNum * onVisDays]
-
+touristOverNightData.7[, onVisTotDays := onVisNum * onVisDays]
 
 ## calculate a new total overnight visitor number per country of destination, to
 ## be used later to proportion the day visitor number, because we do not have
 ## data for country of origin, and allocate them to a country of origin,
 ## assuming they arrive in the same relative proportions as the overnight
 ## visitors
-touristOverNightData.3[, totOnVisNum := sum(onVisNum), by=list(year,dest)]
+touristOverNightData.7[, totOnVisNum := sum(onVisNum), 
+                       by=list(year,dest)]
 
 ## create a new total visitor days by summing the overnight visitor days, and
 ## the day visitor days
-touristOverNightData.3[, totVisDays := onVisTotDays + totDayVisNum]
+touristOverNightData.7[, totVisDays := onVisTotDays + totDayVisNum]
 
+## We need to merge touristOverNightData.7 with calorieCountryDay.4 to calculate
+## the consumption in each country. In our approach, the person comes from country A
+## to country B eats the same food types as people in country B but eats the same
+## calorie amounts as in their home country. In case we don't have totalCalDay for
+## the country A, we will assume the same calories amount in country B.
 
-## calculate total visitor days per year who leaves your country
-daysOut.4 <- touristOverNightData.3[, list(daysOut = sum(totVisDays, na.rm = T)),
-                                    by = c('orig', 'year')]
+# Merge by orig country
+touristOverNightData.7.1 <- merge(touristOverNightData.7, calorieCountryDay.4, 
+                                  by.x="orig", by.y="country", all.x=T)
+setnames(touristOverNightData.7.1, old="baselineCalDay", new="baselineCalDayOrigCountry")
+touristOverNightData.7.1[, totalCalDay := NULL]
+
+# Merge by dest country
+touristOverNightData.7.2 <- merge(touristOverNightData.7.1, calorieCountryDay.4, 
+                                  by.x="dest", by.y="country", all.x=T)
+setnames(touristOverNightData.7.2, old="baselineCalDay", new="baselineCalDayDestCountry")
+touristOverNightData.7.2[, totalCalDay := NULL]
+
+touristOverNightData.7.2[, baselineCalDayOrigCountry := ifelse(is.na(baselineCalDayOrigCountry), baselineCalDayDestCountry, 
+                                                               baselineCalDayOrigCountry)]
+# Now, we'll use only the baselineCalDayOrigCountry.
+touristOverNightData.7.2[, baselineCalDayDestCountry := NULL]
+
+## calculate total visitor days per year who leaves your country using the baseline
+daysOut.8 <- touristOverNightData.7.2[, list(daysOut = sum(totVisDays * baselineCalDayOrigCountry, na.rm=T)),
+                                      by = c('orig', 'year')]
 
 ## calculate total visitor days per year who comes to the country
-daysIn.5 <- touristOverNightData.3[, list(daysIn = sum(totVisDays, na.rm = T)),
-                                   by = c('dest', 'year')]
+daysIn.9 <- touristOverNightData.7.2[, list(daysIn = sum(totVisDays * baselineCalDayOrigCountry, na.rm=T)),
+                                     by = c('dest', 'year')]
 
 ## change column name from "orig" to "country"
-setnames(daysOut.4, 'orig', 'country')
+setnames(daysOut.8, 'orig', 'country')
 
 ## change column name from "dest" to "country"
-setnames(daysIn.5, 'dest', 'country')
+setnames(daysIn.9, 'dest', 'country')
 
 ##-------------
 ## tourist data
 ##-------------
 
 ## merge daysOut and daysIn to allow calculation of days net per country and year
-tourismDays.6 <- merge(daysOut.4, daysIn.5, by=c("country", "year"), all.x = TRUE)
-tourismDays.6[, daysNet := daysIn - daysOut]
+tourismDays.10 <- merge(daysOut.8, daysIn.9, by=c("country", "year"), all.x = TRUE)
+tourismDays.10[, daysNet := daysIn - daysOut]
 
-# Pull food consumption
+## Merge tourismDays.10 with the food consumption data
+setkey(tourismDays.10, "country", "year")
+setkey(foodConsumptionPopData.3, "country", "year")
 
-## set the keys to get the calorie consumption, by individual FBS commodity for
-## each country from the FAO working system
-foodAreaCodes <- faosws::GetCodeList("agriculture", "agriculture", "geographicAreaM49")
-foodElementCodes <- faosws::GetCodeList("suafbs", "fbs", "measuredElementSuaFbs")
+foodTouristConsumption.11 <- merge(foodConsumptionPopData.3, tourismDays.10, by = c("country", "year"), 
+                                   all.x = T)
 
-## the Item codes contain a hierarchy.  We need to determine all the child
-## nodes of the hierarchy and add them to get total consumption.
-oldAreaCodes <- GetCodeList("agriculture", "agriculture", "geographicAreaM49")
-itemCodes <- GetCodeList("agriculture", "agriculture", "measuredItemCPC")[, code]
+foodTouristConsumption.11[, calOutCountry := daysOut * calPerPersonPerDay]
+foodTouristConsumption.11[, calInCountry := daysIn * calPerPersonPerDay]
+foodTouristConsumption.11[, calNetCountry := daysNet * calPerPersonPerDay]
 
-## Pull the supply utilization account(SUA) food balance sheet (FBS) data from
-## SWS pertaining to calorie consumption from each commodity in each country
-countryCodeDim1 <- Dimension(name = "geographicAreaM49",
-                             keys = oldAreaCodes[type == "country", code])
-## A bit hackish: get population from total calories and total calories/person/day
-foodCodeDim2 <- Dimension(name = "measuredElement", keys = c(foodCode))
-itemCPCDim3 <- Dimension(name = "measuredItemCPC", keys = itemCodes)
-timePointYearsDim4 <- Dimension(name = "timePointYears", keys = yearRange)
-calorieConsumptionKey <- DatasetKey(domain = "agriculture", dataset = "agriculture",
-                                    dimensions = list(countryCodeDim1, foodCodeDim2, itemCPCDim3, timePointYearsDim4))
+## making some manipulations
 
-## download the calorie consumption data from the SWS
-calorieConsumptionData.7 <- GetData(calorieConsumptionKey, flags = FALSE)
+# calculating the calorie amount by the population
+foodTouristConsumption.11[, caloriesByPop := calPerPersonPerDay * pop * 1000 * 365]
 
-calorieConsumptionData.7.1 <- dcast.data.table(calorieConsumptionData.7,
-                                               geographicAreaM49 + measuredItemCPC + timePointYears ~ measuredElement,
-                                               value.var = "Value")
-
-## set the column names to small simple ones representing destination cuntry, database
-## element, year and total calories
-setnames(calorieConsumptionData.7.1, old = c("geographicAreaM49", "measuredItemCPC", "timePointYears", "5141"),
-         new = c("country", "item", "year", "totalCal"))
-
-
-## Pull the population datasets
-
-countryCodePopDim1 <- Dimension(name = "geographicAreaM49",
-                                keys = oldAreaCodes[type == "country", code])
-elementPopDim2 <- Dimension(name = "measuredElementPopulation", keys = c("21"))
-timePointYearsDim3 <- Dimension(name = "timePointYears", keys = yearRange)
-popKey <- DatasetKey(domain = "population", dataset = "population",
-                     dimensions = list(countryCodePopDim1, elementPopDim2, timePointYearsDim3))
-
-## download the population data from the SWS
-popData.8 <- GetData(popKey, flags = FALSE)
-
-popData.8.1 <- dcast.data.table(popData.8,
-                                geographicAreaM49 + timePointYears ~ measuredElementPopulation,
-                                value.var = "Value")
-
-## set the column names to small simple ones representing destination cuntry, 
-##  year and total population
-setnames(popData.8.1, old = c("geographicAreaM49", "timePointYears", "21"),
-         new = c("country", "year", "pop"))
-
-
-## Merge population data with food data
-
-setkey(calorieConsumptionData.7.1, "country", "year")
-setkey(popData.8.1, "country", "year")
-
-calorieConsumptionPopData.9 <- merge(calorieConsumptionData.7.1, popData.8.1, by = c("country", "year"), 
-                                     all.x = TRUE )
-
-## compute total calories per person per day in orig country
-## Population is in 1000s
-calorieConsumptionPopData.9[, calPerPersonPerDay := totalCal / 365 / (pop * 1000)]
-
-## merge data8 and data5 to allow calculation of calories 
-## by commodity per year for who goes to the country and who left  
-
-setkey(tourismDays.6, "country", "year")
-setkey(calorieConsumptionPopData.9, "country", "year")
-
-caloriesCommoditiesTourist.10 <- merge(calorieConsumptionPopData.9, tourismDays.6, by = c("country", "year"), 
-                                       all.x = T)
-
-caloriesCommoditiesTourist.10[, calOutCountry := daysOut * calPerPersonPerDay]
-caloriesCommoditiesTourist.10[, calInCountry := daysIn * calPerPersonPerDay]
-caloriesCommoditiesTourist.10[, calNetCountry := daysNet * calPerPersonPerDay]
-
-## Calories in, out, net and total per country
-consumpCal <- caloriesCommoditiesTourist.10[, list(totalCal = sum(totalCal),
-                                     totalCalOutCountry = sum(calOutCountry),
-                                     totalCalInCountry = sum(calInCountry),
-                                     totalCalNetCountry = sum(calNetCountry),
-                                     pop = max(pop)),
-                              by = list(country, year)]
 
 ## Get rid of some of the columns that we don't need anymore:
+foodTouristConsumption.11[, c("totalFood", "valueCal", "calPerPersonPerDay", "daysOut", 
+                              "daysIn", "daysNet") := NULL]
 
-caloriesCommoditiesTourist.10[, c("totalCal", "pop", "calPerPersonPerDay", "daysOut", 
-                                  "daysIn", "daysNet") := NULL]
-
-## Net calories
-touristCaloriesNetCountryByItem.11 <- caloriesCommoditiesTourist.10[ , list(calNetCountry),
-                                                                     by = list(year, country, item) ]
-
-touristCaloriesNetCountryByItem.11[, tourismElement:= "100"]
-touristCaloriesNetCountryByItem.11[, flagObservationStatus:= "I"]
-touristCaloriesNetCountryByItem.11[, flagMethod:= "e"]
-
-cpcCode <- GetCodeList("agriculture", "agriculutre", "measuredItemCPC")[, code, description]
+cpcCode <- GetCodeList("agriculture", "aproduction", "measuredItemCPC")[, code, description]
 setnames(cpcCode, old = c("description", "code"), new = c("Item", "item"))
 
-m49Code <- GetCodeList("agriculture", "agriculutre", "geographicAreaM49")[, code, description]
+m49Code <- GetCodeList("agriculture", "aproduction", "geographicAreaM49")[, code, description]
 setnames(m49Code, old = c("description", "code"), new = c("Country", "country"))
 
 ## Merge
-touristNetCaloriesData <- merge(touristCaloriesNetCountryByItem.11, m49Code, by = c("country"), all.x = T)
-touristNetCaloriesData <- merge(touristNetCaloriesData, cpcCode, by = c("item"), all.x = T)
+touristCaloriesData <- merge(foodTouristConsumption.11, m49Code, by = c("country"), all.x = T)
+touristCaloriesData <- merge(touristCaloriesData, cpcCode, by = c("item"), all.x = T)
 
-touristNetCaloriesData[, c("tourismElement", "flagObservationStatus", "flagMethod") := NULL ]
+setnames(touristCaloriesData, old=c("Country", "Item"), new=c("countryName", "itemName"))
 
-setnames(touristNetCaloriesData,
-         old = c("item", "country", "year", "calNetCountry", "Country", "Item"),
-         new = c("itemCode", "countryCode", "year", "netCalories", "country", "item"))
-
-
-foodData <- merge(calorieConsumptionData.7.1, m49Code, by = c("country"), all.x = T)
-foodData <- merge(foodData, cpcCode, by = c("item"), all.x = T)
-foodData[, c("item", "country") := NULL ]
-
-setnames(foodData,
-         old = c("year", "totalCal", "Country", "Item"),
-         new = c("year", "totalCalories", "country", "item"))
-
-setcolorder(foodData,
-            c("year", "country", "item", "totalCalories"))
-
-## Merge Tourism data with food data
-testingTouristData <- merge(touristNetCaloriesData, foodData, 
-                            by = c("year", "country", "item"))
-
-## % tourism consumption per country and item
-testingTouristData[, percentCalories := netCalories/totalCalories]
+setcolorder(touristCaloriesData, neworder=c("year", "pop", "country", "countryName", "item", "itemName", 
+                                            "caloriesByPop", "calOutCountry", "calInCountry", "calNetCountry"))
 
 ## % consumption per country
-
-tabCountry <- testingTouristData[, list(percentCaloriesCountry = sum(netCalories, na.rm=T)/sum(totalCalories, na.rm=T)),
-                                 by = list(year, country, countryCode)]
+tabCountry <- touristCaloriesData[, list(percentNetCal = sum(calNetCountry, na.rm=T)/sum(caloriesByPop, na.rm=T),
+                                         percentInCal = sum(calInCountry, na.rm=T)/sum(caloriesByPop, na.rm=T),
+                                         percentOutCal = sum(calOutCountry, na.rm=T)/sum(caloriesByPop, na.rm=T),
+                                         pop = max(pop)),
+                                 by = list(year, country, countryName)]
+# we have 4 Chinas ("China, Macao", "China,H.Kong", etc...). We'll exclude here because we don'w have data for China just.
+tabCountry <- tabCountry[!grepl("China", countryName)]
 
 ````
 
@@ -344,191 +342,66 @@ countryMap <- data.frame(id = 0:(length(countryMap)-1),
                          country = countryMap)
 coords <- merge(coords, countryMap, by = "id", all = TRUE)
 
+# Let's to exclude the countries that don't have tourist data
+tabCountry <- tabCountry[!(percentNetCal == 0) & 
+                           !(percentNetCal == "NaN" & percentInCal == "NaN" & percentOutCal == "NaN")]
 ## use countryCode package
-
 tabCountry <- data.frame(tabCountry)
-tabCountry$shortName <- countrycode(tabCountry$country, "country.name", "iso3c")
+tabCountry$shortName <- countrycode(tabCountry$countryName, "country.name", "iso3c")
 
 coords$shortName <- countrycode(coords$country, "country.name", "iso3c")
 # unique(subset(coords, is.na(shortName) == T)$country)
 
 coords <- merge(coords, tabCountry, by = "shortName", all = TRUE)
 coords <- coords[order(coords$shortName, coords$piece, coords$order), ]
-coords[coords$percentCaloriesCountry < -.5 & !is.na(coords$percentCaloriesCountry), ]
 
 ## Create a categorical variable
-
 coords <- data.table(coords)
-coords[, percentCat := ifelse(is.na(percentCaloriesCountry) == T, "Missing", 
-                               ifelse(percentCaloriesCountry > 0, "Receiver",
-                                     ifelse(percentCaloriesCountry < 0, "Emitter", "Neutro")))]
+coords[, percentCat := ifelse(is.na(percentNetCal) == T, "Missing", 
+                               ifelse(percentNetCal > 0, "Receiver",
+                                     ifelse(percentNetCal < 0, "Emitter", "Neutro")))]
 
 coords$percentCat <- factor(coords$percentCat, 
                              levels = c("Missing", "Emitter", "Neutro", "Receiver"))
 
-## Validation
-tabValidation <- coords[, list(country.y = unique(country.y)),
-       by=list(country.x)]
-#tabValidation[is.na(country.x) == T]
-setnames(tabValidation, c("country.x", "country.y"), c("countryFaoWorld", "countryTouristConsumption"))
-#tabValidation[is.na(countryFaoWorld) == T]
+coords <- coords[!is.na(country.x)]
 
-## 10 countries that we need to put in fao_world table
-## save(tabValidation, file = "~/Github/faoswsTourist/Data/tabValidation.RData")
-
-####################################################
-### validation with map.dat <- map_data("world") ###
-####################################################
-#mapData <- map_data("world")
-#head(subset(mapData, region == "Seychelles"))
-#tabCountry$shortName <- countrycode(tabCountry$country, "country.name", "iso3c")
-#mapData$shortName <- countrycode(mapData$region, "country.name", "iso3c")
-
-## merge these datasets
-#mapDataCal <- merge(mapData, tabCountry, by = "shortName", all = T)
-
-#mapDataCal <- data.table(mapDataCal)
-#mapDataCal[, percentCat := ifelse(is.na(percentCaloriesCountry) == T, "Missing", 
- #                             ifelse(percentCaloriesCountry > 0, "Receiver",
-  #                                   ifelse(percentCaloriesCountry < 0, "Emitter", "Neutro")))]
-
-#mapDataCal$percentCat <- factor(mapDataCal$percentCat, 
- #                           levels = c("Missing", "Emitter", "Neutro", "Receiver"))
-
-#mapDataCal <- mapDataCal[order(mapDataCal$shortName, mapDataCal$order), ]
-
-#ggplot(mapDataCal, aes(x=long, y=lat, group=group, fill=percentCat)) + 
- # geom_polygon() + #theme(legend.title=element_blank()) +
-  #scale_fill_manual(values=c("#C0C0C0", "#D00000", "#fec666", "#667bc6")) +
-  #theme(#line = element_blank(),
-   # axis.ticks = element_blank(),
-    #axis.text.x = element_blank(), 
-    #axis.text.y = element_blank(),
-    ##text = element_blank(),
-    #title = element_blank())
-#####################################################
-
-````
-
-````{r include=FALSE, cache=FALSE}
-
-# First map! It's working but I prefer to put the second one.
-#options(warn=-1)
-#ggplot(coords, aes(x=long, y=lat, group=group, fill=percentCat)) + 
- # geom_polygon() + #theme(legend.title=element_blank()) +
-  #scale_fill_manual(values=c("#C0C0C0", "#D00000", "#fec666", "#667bc6")) +
-  #theme(#line = element_blank(),
-   #     axis.ticks = element_blank(),
-    #    axis.text.x = element_blank(), 
-     #   axis.text.y = element_blank(),
-        #text = element_blank(),
-      #  title = element_blank())
-````
-
-````{r include=FALSE, cache=FALSE}
-options(warn=-1)
-## Let's to compare calories consumption by tourist inside and outside the 
-## country with the mean consumption of the world.  
-
-#consumpCal[is.na(totalCal) == T]
-#consumpCal[is.na(totalCalOutCountry) == T]
-#consumpCal[is.na(totalCalInCountry) == T]
-
-consumpCal[, percentcalOut := totalCalOutCountry/totalCal]
-consumpCal[, percentcalIn := totalCalInCountry/totalCal]
-
-## Merge
-consumpCal <- merge(consumpCal, m49Code, by="country", all.x = T)
-
-## Let's divide in 2 parts and then to make rbind to join again
-
-# Just countries with value for consumption
-#consumpCal.1 <- consumpCal[is.na(totalCalOutCountry) != T & is.na(totalCalInCountry) != T]
-
-consumpCal.1 <- consumpCal[is.na(totalCalNetCountry) != T & is.na(totalCalInCountry) != T & is.na(totalCalOutCountry) != T & 
-             totalCalInCountry != 0 & totalCalOutCountry != 0]
-
-consumpCal.1[, clusterCountry := ifelse(percentcalOut < sum(totalCalOutCountry, na.rm=T)/sum(totalCal, na.rm=T) & 
-                                        percentcalIn < sum(totalCalInCountry, na.rm=T)/sum(totalCal, na.rm=T), "Isolated",
-                                      ifelse(percentcalOut < sum(totalCalOutCountry, na.rm=T)/sum(totalCal, na.rm=T) & 
-                                               percentcalIn > sum(totalCalInCountry, na.rm=T)/sum(totalCal, na.rm=T), "Receiver",
-                                             ifelse(percentcalOut > sum(totalCalOutCountry, na.rm=T)/sum(totalCal, na.rm=T) & 
-                                                      percentcalIn < sum(totalCalInCountry, na.rm=T)/sum(totalCal, na.rm=T), "Emitter", 
-                                                    ifelse(percentcalOut > sum(totalCalOutCountry, na.rm=T)/sum(totalCal, na.rm=T) & 
-                                                             percentcalIn > sum(totalCalInCountry, na.rm=T)/sum(totalCal, na.rm=T), "Transit", 
-                                                           "Missing"))))]
-
-# Just countries with NA for consumption IN or OUT
-consumpCal.2 <- consumpCal[is.na(totalCalOutCountry) == T | is.na(totalCalInCountry) == T | totalCalInCountry == 0]
-
-consumpCal.2[, clusterCountry := "Missing"]
-
-## Rbind this datasets
-
-consumpCal <- rbind(consumpCal.1, consumpCal.2)
-#head(consumpCal)
-#table(consumpCal$clusterCountry)
-
-## Load fao_world object
-load(url("https://github.com/UNFAOstatistics/gisfao/raw/master/data/fao_world.RData"))
-# Install development version of ggplot2
-#devtools::install_github("hadley/ggplot2")
-coords <- ggplot2:::fortify(fao_world)
-countryMap <- as.character(fao_world$ADM0_NAME)
-countryMap <- data.frame(id = 0:(length(countryMap)-1),
-                         country = countryMap)
-coords <- merge(coords, countryMap, by = "id", all = TRUE)
-
-## use countryCode package
-consumpCal <- data.frame(consumpCal)
-consumpCal$shortName <- countrycode(consumpCal$Country, "country.name", "iso3c")
-coords$shortName <- countrycode(coords$country, "country.name", "iso3c")
-
-## Merge
-coords2 <- merge(coords, consumpCal, by = "shortName", all = TRUE)
-coords2 <- coords2[order(coords2$shortName, coords2$piece, coords2$order), ]
-coords2 <- data.table(coords2)
-coords2[is.na(clusterCountry) == T, clusterCountry := "Missing"]
-coords2$clusterCountry <- factor(coords2$clusterCountry, 
-                             levels = c("Missing", "Emitter", "Isolated", "Receiver", "Transit"))
-
-countriesNames <- coords2
 ````
 
 ## Segmentation of the world according to a tourist consumption
 
 
-For our first visualization, we divided the countries in five clusters.
+For our first visualization, we divided the countries in three clusters.
 
 
-**Receiver**: countries with % outside of consumption tourists under the average and % consumption inside over the average.
+**Receiver**: countries with net food consume by tourists more than 0.
 
-**Emitter**: countries with % inside of consumption tourists under the average and % consumption outside over the average.
-
-**Transit**: countries with both % of consumption inside and outside over the average consumption of tourists. 
-
-**Isolated**: countries with both % of consumption inside and outside under the average consumption of tourists. 
+**Emitter**: countries with net food consume by tourists less than 0.
 
 **Missing**: countries with no data for tourist consumption.
 
-There are information for 70 countries (37.4%) and the others countries are missing data.
+There are information for 128 countries (68.5%) and the others countries have missing data.
 
 According to a cluster, we have:
 
-**Cluster** | **Countries %**
-------------- | -------------
-Receiver      |    4.8%
-Emitter       |    4.3% 
-Transit       |    10.7%
-Isolated      |    17.6% 
-Missing       |    62.6%
+````{r, echo=FALSE}
+
+tabCountryCluster <- coords[, list(percentCat = max(percentCat)), 
+                            by=list(country.x)]
+
+tab = tabCountryCluster[, .N, percentCat]
+tab[, percent:=100*round(N/sum(N), 2)]
+
+kable(tab, format = "markdown", padding = 0, 
+      col.names=c("Cluster", "Number of countries", "%"))
+````
 
 
 ````{r, echo=FALSE}
 options(warn=-1)
-ggplot(coords2, aes(x=long, y=lat, group=group, fill=clusterCountry)) + 
-  geom_polygon() + #theme(legend.title=element_blank()) +
-  scale_fill_manual(values=c("#C0C0C0", "#D00000", "#fec666", "#667bc6", "#2E8B57")) +
+ggplot(coords, aes(x=long, y=lat, group=group, fill=percentCat)) + 
+  geom_polygon(color="white") + #theme(legend.title=element_blank()) +
+  scale_fill_manual(values=c("#C0C0C0", "#D00000", "#2E8B57", "#667bc6", "#2E8B57")) +
   #geom_point() + 
   #geom_text(label=country.x) +
   theme(#line = element_blank(),
@@ -539,7 +412,6 @@ ggplot(coords2, aes(x=long, y=lat, group=group, fill=clusterCountry)) +
         title = element_blank())
 ````
 
-
 ## Summaries
 
 
@@ -547,184 +419,59 @@ Above there are some statistics about the **Net Tourist Consumption** estimated 
 
 Note that when the estimates for tourist consumption is **negative** it means that more people **left this country**. If is **positive**, it means that more people **went** to this country.
 
-Statistics | Values
-------------- | -------------
- Min       | - 67%
- Mean      | - 0.5% 
- Max       |  6.3%
-
-
-This result it means that the country more impacted with the tourist consumption had 6.3% of your production
-consumed by tourists. About the minimum value, we need to investigate what is happening.
-
-So we can calculate which countries were more impacted with the tourist consumption and which one had less tourist consumption in 2012.
-````{r include=FALSE, cache=FALSE}
-consumpCal <- data.table(consumpCal)
-consumpCal[, percentNet := totalCalNetCountry/totalCal]
-#100*summary(consumpCal$percentNet)
+````{r, echo=FALSE}
+tabCountry <- data.table(tabCountry)
+kable(tabCountry[, list(min=100*round(min(percentNetCal), 3), mean=100*round(mean(percentNetCal), 3), max=100*round(max(percentNetCal), 3))], format = "markdown", padding = 3, col.names=c("Min", "Mean", "Max"))
 ````
 
-The histogram above is about the net food consumption % of tourists. Note that there is just one country (**Albania**) with the strange negative value.
+This result it means that the country more impacted with the tourist consumption had **`r paste0(100*round(max(tabCountry$percentNetCal), 3), '%')`** of your production consumed by tourists. 
+So we can calculate which countries were more impacted with the tourist consumption and which ones had less tourist consumption in 2012.
 
+The histogram above is about the net food consumption % of tourists.
 
 ````{r, echo=FALSE}
-hist(100*consumpCal$percentNet, breaks = 100, xlab = "Net Food Consumption % of Tourists", main="")
+hist(100*tabCountry$percentNetCal, breaks = 100, xlab = "Net Food Consumption % of Tourists", main="")
 ````
-
-Let's check the **overnight visitor numbers** from 5 regions that had higher growth from 2010 to 2012.
-So, we can see that is no make sense the values for **Albania**.
-
-````{r, echo=FALSE}
-touristFlow <- touristData.1[, list(totOnVisNum = sum(onVisNum)),
-              by = list(orig, year)]
-
-touristFlow.1 <- as.data.table(dcast(touristFlow, orig ~ year, value.var = "totOnVisNum"))
-
-setnames(touristFlow.1, old = c("orig", "2010", "2011", "2012"),
-         new = c("country", "year2010", "year2011", "year2012"))
-
-touristFlow.1[, percentIncreasing := 100*round((year2012 - year2010)/year2010, 3), ]
-
-touristFlow.1 <- merge(touristFlow.1, m49Code, by = "country", all.x=T)
-touristFlow.1 <- touristFlow.1[order(-touristFlow.1$percentIncreasing)]
-top5TouristFlow <- head(touristFlow.1, 5)
-top5TouristFlow$Country <- factor(top5TouristFlow$Country, 
-                          levels = c("Albania", "Dng Ant EAA", "Congo", "Andorra", "Suriname"))
-
-````
-
-````{r, echo=FALSE, fig.width=6, fig.height=3}
-
-space <- function(x, ...) { 
-  format(x, ..., big.mark = ",", scientific = FALSE, trim = TRUE)
-}
-
-theme_fao <- function(angle=90, fonte="calibri", size=14) {
-  
-  theme(panel.grid.major = element_blank()) +
-    theme(panel.background = element_blank())+
-    theme(legend.title = element_text(family=fonte, size = size, face = "bold")) +
-    theme(legend.text = element_text(family=fonte, size = size, face = "bold")) +
-    theme(plot.title = element_text(family=fonte, size = size, face = "bold")) +
-    theme(axis.text.x = element_text(family=fonte, size = size, face = "bold", angle = angle, vjust = .5))+ 
-    theme(axis.text.y= element_text(family=fonte, size = size, face = "bold")) +
-    theme(axis.title.x= element_text(family=fonte, size = size, face = "bold")) +
-    theme(axis.title.y= element_text(family=fonte, size = size, face = "bold"))
-  
-}
-
-p <- ggplot(data=top5TouristFlow, aes(x=as.factor(Country), y=percentIncreasing, 
-                                      fill=as.factor(Country))) + 
-  geom_bar(aes(), stat = "identity", position=position_dodge()) + 
-  scale_y_continuous(labels = space) +
-  theme(legend.position="none") +  ylab('growth %') + xlab('') + 
-  #theme_fao(45) +
-  annotate("text", x = 1, y = 10000, label = "46,000%") +
-  annotate("text", x = 2, y = 10000, label = "1,680%") +
-  annotate("text", x = 3, y = 10000, label = "226%") +
-  annotate("text", x = 4, y = 10000, label = "208%") +
-  annotate("text", x = 5, y = 10000, label = "192%")
-p
-
-````
-
 
 ## Countries more impacted by Tourist Consumption
 
-````{r include=FALSE, cache=FALSE}
-consumpCal <- consumpCal[order(-consumpCal$percentNet)]
+Into some small islands states which are popular holiday destinations, such as the Bahamas or Seychelles, the Tourist Consumption can constituite a significant part in the uses of food products.
+
+````{r, echo=FALSE}
+
+tabCountry <- tabCountry[order(-percentNetCal)]
+top5 <- head(tabCountry[, c("countryName", "percentNetCal"), with=F], 5)
+top5[, percentNetCal:= 100*round(percentNetCal, 3)]
+kable(top5, format = "markdown", padding = 3, col.names=c("Country", "% Tourist Consumption"))
 ````
-
-Into some small islands states which are popular holiday destinations, such as the Bahamas or Seychelles, the Tourist Consumption can constituite a significant part in the uses of food products. 
-
-Country     | % Net Tourist Consumption
---------------------- | -------------
- Bahamas    |         6.3%
- Seychelles |         5% 
- Barbados   |         4.6%
- Bermuda    |         4.3% 
- Cyprus     |         4%
-
 
 ## Countries less impacted by Tourist Consumption
 
-````{r include=FALSE, cache=FALSE}
-consumpCal <- consumpCal[order(consumpCal$percentNet)]
-````
-
 These countries are the less impacted by tourist consumption. It means that more people left these countries than went to these countries.
 
-Country     | % Net Tourist Consumption
------------ | -------------
- Albania                 |         - 67%
- Brunei Darussalam       |         - 5.8% 
- Republic of Moldova     |         - 2.7%
- Switzerland             |         - 2.6% 
- Kuwait                  |         - 2.2%
+````{r, echo=FALSE}
 
-
-## Tourist consumption for the 5 biggest countries by population
-
-````{r include=FALSE, cache=FALSE}
-consumpCal <- consumpCal[order(-consumpCal$pop)]
+tabCountry <- tabCountry[order(percentNetCal)]
+top5Less <- head(tabCountry[, c("countryName", "percentNetCal"), with=F], 5)
+top5Less[, percentNetCal:= 100*round(percentNetCal, 3)]
+kable(top5Less, format = "markdown", padding = 3, col.names=c("Country", "% Tourist Consumption"))
 ````
 
-Country   |Population (million) | % Net Tourist Consumption
------------ | -----|--------
- United States of America                 |         317.5| -0.03%
- Brazil       |         198.8|0.04%
- Pakistan     |         179.1|-0.001%
- Nigeria             |         168.8|-0.02% 
- Russian Federation(1992-)                  |         143.1|-0.14%
+## Tourist consumption for the 5 biggest countries by population
+````{r, echo=FALSE}
+
+tabCountry <- tabCountry[order(-pop)]
+top5Big <- head(tabCountry[, c("countryName", "percentNetCal"), with=F], 5)
+top5Big[, percentNetCal:= 100*round(percentNetCal, 3)]
+kable(top5Big, format = "markdown", padding = 3, col.names=c("Country", "% Tourist Consumption"))
+````
 
 ## Tourist consumption for the 5 smallest countries by population
 
-According to a table below, the 5 smallest countries has positive net tourist consumption.
+````{r, echo=FALSE}
 
-
-Country   |Population (million) | % Net Tourist Consumption
------------ | -----|--------
- Saint Kitts and Nevis                 |         54| 3.38%
- Bermuda       |         65|4.33%
- Seychelles     |         92|5.04%
- Grenada             |         105|2.02% 
- Saint Vincent and the Grenadines                  |         109|1.31%
-
-
-
-
-
-
-## Data 
-
-The table above show the number of countries in each dataset.
-
-DataSet     | Numbe of Countries
---------------------- | -------------
- Tourist Flow     |         144
- Food Data |         103 
- Tourist Flow & Food Data   |         70
-
-
-````{r include=FALSE, cache=FALSE}
-options(warn=-1)
-## Number of countries with  tourist flow data : #144
-#length(unique(tourismDays.6[year == 2012 & is.na(daysNet) != T & daysIn != 0 & daysOut != 0 &  
- #                             is.na(daysIn) != T & is.na(daysOut) != T])$country)
-
-## Number of countries with food data? # 103
-#calorieConsumptionData.7.1[, list(length(unique(country))),
- #                          by = list(year)]
-
-## Number of countries with 2 information
-
-#consumpCal[is.na(totalCalNetCountry) != T & is.na(totalCalInCountry) != T & is.na(totalCalOutCountry) != T & 
- #            totalCalInCountry != 0 & totalCalOutCountry != 0]
-
-
-grid.newpage()
-draw.pairwise.venn(144, 103, 70, category = c("Tourist Flow Data", "Food Data"), lty = rep("blank", 
-                                                                                   2), fill = c("skyblue", "orange"), alpha = rep(0.5, 2),cat.pos = c(0,0), cat.dist = rep(0.025, 2))
-
+tabCountry <- tabCountry[order(pop)]
+top5Small <- head(tabCountry[, c("countryName", "percentNetCal"), with=F], 5)
+top5Small[, percentNetCal:= 100*round(percentNetCal, 3)]
+kable(top5Small, format = "markdown", padding = 3, col.names=c("Country", "% Tourist Consumption"))
 ````
-
