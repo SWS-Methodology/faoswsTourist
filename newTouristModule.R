@@ -13,7 +13,7 @@ R_SWS_SHARE_PATH = Sys.getenv("R_SWS_SHARE_PATH")
 if(!exists("DEBUG_MODE") || DEBUG_MODE == ""){
   token = "41558a20-c419-4821-8288-2dc7ccbc5ecf"
   GetTestEnvironment("https://hqlqasws1.hq.un.fao.org:8181/sws",token)
-  
+
 }
 
 files = dir("~/Github/faoswsTourist/R", full.names = TRUE)
@@ -23,7 +23,7 @@ sapply(files, source)
 swsContext.computationParams$startYear <- as.numeric(swsContext.computationParams$startYear)
 swsContext.computationParams$endYear <- as.numeric(swsContext.computationParams$endYear)
 if(swsContext.computationParams$startYear > swsContext.computationParams$endYear)
-  stop("First Year should be smallest than End Year")
+    stop("First Year should be smallest than End Year")
 ## yearRange <- swsContext.datasets[[1]]@dimensions$timePointYears@keys
 yearRange <- swsContext.computationParams$startYear:swsContext.computationParams$endYear
 yearRange <- as.character(yearRange)
@@ -93,6 +93,17 @@ setkey(popData.2.1, "country", "year")
 foodConsumptionPopData.3 <- merge(foodConsumptionData.1.1, popData.2.1, by = c("country", "year"), 
                                   all.x = TRUE )
 
+## compute total calories per person per day in orig country
+## Population is in 1000s
+foodConsumptionPopData.3[, calPerPersonPerDay := (totalFood * valueCal * 10000) / 365 / (pop * 1000)]
+
+## Compute the calorie consumption per country, per person and per day
+calorieCountryDay.4 <- foodConsumptionPopData.3[, list(totalCalDay = sum(calPerPersonPerDay, na.rm=T)),
+                                                by=list(country)]
+
+## Let's to create the baseline consumption level (2500 calories per person per day).
+calorieCountryDay.4[, baselineCalDay:= totalCalDay/2500]
+
 ## Step 3: Pull the tourist data
 ## set the keys to get the tourist data from the FAO working system
 destinationAreaCodes <- faosws::GetCodeList("tourism", "tourist_flow",
@@ -120,17 +131,17 @@ touristKey <- DatasetKey(domain = "tourism", dataset = "tourist_flow",
                                            tourismElementDim3, timePointYearsDim4))
 
 ## download the first tourist data from the SWS
-touristData.4 <- GetData(touristKey, flags = FALSE)
+touristData.5 <- GetData(touristKey, flags = FALSE)
 
-cat("Tourist data loaded with ", nrow(touristData.4), " rows.")
+cat("Tourist data loaded with ", nrow(touristData.5), " rows.")
 
 ## remove the tourismElement column which is of no value to me here
-touristData.4 <- touristData.4[, which(!grepl("tourism", colnames(touristData.4))), 
+touristData.5 <- touristData.5[, which(!grepl("tourism", colnames(touristData.5))), 
                                with=FALSE]
 
 ## change column names to small simple ones representing destination, origin,
 ## year and overnight visitor number
-setnames(touristData.4, old = c("destinationCountryM49", "originCountryM49", "timePointYears", "Value"), 
+setnames(touristData.5, old = c("destinationCountryM49", "originCountryM49", "timePointYears", "Value"), 
          new = c("dest", "orig", "year", "onVisNum"))
 
 # Step 4: Pull the tourist consumption data
@@ -147,174 +158,137 @@ consumptionKey = DatasetKey(domain = "tourism", dataset = "tourist_consumption",
                             dimensions = list(consumptionCountryDim1, consumptionElementDim2, timePointYearsDim3))
 
 ## download the bi-direction tourism data from the SWS
-consumptionData.5 <- GetData(consumptionKey, flags = FALSE)
+consumptionData.6 <- GetData(consumptionKey, flags = FALSE)
 
 ## set the column names to small simple ones representing destination, database
 ## element, year and value
-setnames(consumptionData.5, old = c("geographicAreaM49", "tourismElement", "timePointYears", "Value"), 
+setnames(consumptionData.6, old = c("geographicAreaM49", "tourismElement", "timePointYears", "Value"), 
          new = c("dest", "element", "year", "value"))
 
 # Step 5: Calculate tourists leaving/coming to country A, B, ...
 
 ## cast the data table to get it in long format
-consumptionData.5.1 <- as.data.table(dcast(consumptionData.5, dest + year ~ element))
+consumptionData.6.1 <- as.data.table(dcast(consumptionData.6, dest + year ~ element))
 
 ## change the column names to something readable, "onVisDays" stands for the
 ## mean number of days that overnight visitors stayed in the destination country.
 ## "totDayVisNum" is the number of people who visited the country but for a
 ## single day, e.g. from a cruise ship
-setnames(consumptionData.5.1, old = c("20", "30"), 
+setnames(consumptionData.6.1, old = c("20", "30"), 
          new = c("onVisDays", "totDayVisNum"))
 
 ## replace missing day visitor numbers (NA) with zero, because it won't effect
 ## end calculations, but NA's cause equations to fail
-consumptionData.5.1$totDayVisNum[is.na(consumptionData.5.1$totDayVisNum)] <- 0
+consumptionData.6.1$totDayVisNum[is.na(consumptionData.6.1$totDayVisNum)] <- 0
 
 ## merge the two data sets, one containing overnight visitor numbers and number
 ## of days they visited, the other data set the number of tourists travelling to
 ## and from each country
-touristOverNightData.6 <- merge(touristData.4, consumptionData.5.1, 
+touristOverNightData.7 <- merge(touristData.5, consumptionData.6.1, 
                                 by=c("dest", "year"), all.x = TRUE)
 
 ## rearrange the column order to make it easier to view
-touristOverNightData.6 <- setcolorder(touristOverNightData.6, neworder = c("year", "orig", "dest", "onVisNum",
+touristOverNightData.7 <- setcolorder(touristOverNightData.7, neworder = c("year", "orig", "dest", "onVisNum",
                                                                            "onVisDays", "totDayVisNum"))
 
 ## a small number of countries are missing values for overnight visitor days,
 ## "onVisDays" and this affects the bi-directional calculations for them, but
 ## also all of the other countries as well, so this imputes the missing number
 ## of days, by taking the mean of all day numbers present, grouped by year.
-touristOverNightData.6[, onVisDays := ifelse(is.na(onVisDays), mean(onVisDays, na.rm=TRUE),
+touristOverNightData.7[, onVisDays := ifelse(is.na(onVisDays), mean(onVisDays, na.rm=TRUE),
                                              onVisDays), by = year]
 
 ## calculate the total number tourist visitor days, the product of overnight
 ## visitor number and days per visit
-touristOverNightData.6[, onVisTotDays := onVisNum * onVisDays]
+touristOverNightData.7[, onVisTotDays := onVisNum * onVisDays]
 
 ## calculate a new total overnight visitor number per country of destination, to
 ## be used later to proportion the day visitor number, because we do not have
 ## data for country of origin, and allocate them to a country of origin,
 ## assuming they arrive in the same relative proportions as the overnight
 ## visitors
-touristOverNightData.6[, totOnVisNum := sum(onVisNum), 
+touristOverNightData.7[, totOnVisNum := sum(onVisNum), 
                        by=list(year,dest)]
 
 ## create a new total visitor days by summing the overnight visitor days, and
 ## the day visitor days
-touristOverNightData.6[, totVisDays := onVisTotDays + totDayVisNum]
+touristOverNightData.7[, totVisDays := onVisTotDays + totDayVisNum]
 
-# To calculating the calories per person per day we need to consider just the people
-# who were in the country. So we have to calculate the number of days net.
-auxTableOut <- touristOverNightData.6[, list(totDaysOut = sum(totVisDays, na.rm=T)),
-                                      by=list(year, orig)]
-setnames(auxTableOut, "orig", "country")
-
-auxTableIn <- touristOverNightData.6[, list(totDaysIn = sum(totVisDays, na.rm=T)),
-                                     by=list( year, dest)]
-setnames(auxTableIn, "dest", "country")
-
-auxTable <- merge(auxTableOut, auxTableIn, by=c("year", "country"), all.x=T)
-auxTable[, totDaysNet := totDaysIn - totDaysOut]
-
-## merge the foodConsumptionPopData.3 with auxTable to calculating the total
-## calories per person per day
-
-keys = c("year", "country")
-foodConsumptionPopData.3 <- merge(foodConsumptionPopData.3, auxTable[, c(keys, "totDaysNet"), with=F],
-                                  by=keys, all.x=T)
-
-## compute total calories per person per day in orig country
-## Population is in 1000s
-foodConsumptionPopData.3[, calPerPersonPerDay := (totalFood * valueCal * 10000) /(365 * (pop * 1000) + totDaysNet)]
-
-## Compute the calorie consumption per country, per person and per day
-calorieCountryDay.7 <- foodConsumptionPopData.3[, list(totalCalDay = sum(calPerPersonPerDay, na.rm=T)),
-                                                by=list(country)]
-
-## Let's to create the baseline consumption level (2500 calories per person per day).
-calorieCountryDay.7[, baselineCalDay:= totalCalDay/2500]
-calorieCountryDay.7 <- calorieCountryDay.7[order(-calorieCountryDay.7$totalCalDay)]
-
-## We need to merge touristOverNightData.6 with calorieCountryDay.7 to calculate
+## We need to merge touristOverNightData.7 with calorieCountryDay.4 to calculate
 ## the consumption in each country. In our approach, the person comes from country A
 ## to country B eats the same food types as people in country B but eats the same
 ## calorie amounts as in their home country. In case we don't have totalCalDay for
 ## the country A, we will assume the same calories amount in country B.
 
 # Merge by orig country
-touristOverNightData.8 <- merge(touristOverNightData.6, calorieCountryDay.7, 
-                                by.x="orig", by.y="country", all.x=T)
-setnames(touristOverNightData.8, old="baselineCalDay", new="baselineCalDayOrigCountry")
-touristOverNightData.8[, totalCalDay := NULL]
+touristOverNightData.7.1 <- merge(touristOverNightData.7, calorieCountryDay.4, 
+                                  by.x="orig", by.y="country", all.x=T)
+setnames(touristOverNightData.7.1, old="baselineCalDay", new="baselineCalDayOrigCountry")
+touristOverNightData.7.1[, totalCalDay := NULL]
 
 # Merge by dest country
-touristOverNightData.8.1 <- merge(touristOverNightData.8, calorieCountryDay.7, 
+touristOverNightData.7.2 <- merge(touristOverNightData.7.1, calorieCountryDay.4, 
                                   by.x="dest", by.y="country", all.x=T)
-setnames(touristOverNightData.8.1, old="baselineCalDay", new="baselineCalDayDestCountry")
-touristOverNightData.8.1[, totalCalDay := NULL]
+setnames(touristOverNightData.7.2, old="baselineCalDay", new="baselineCalDayDestCountry")
+touristOverNightData.7.2[, totalCalDay := NULL]
 
-touristOverNightData.8.1[, baselineCalDayOrigCountry := ifelse(is.na(baselineCalDayOrigCountry), baselineCalDayDestCountry, 
+touristOverNightData.7.2[, baselineCalDayOrigCountry := ifelse(is.na(baselineCalDayOrigCountry), baselineCalDayDestCountry, 
                                                                baselineCalDayOrigCountry)]
-
-# Now, we'll use only the baselineCalDayOrigCountry because we'll calculate the
-# total visitor days per year who cames to the country (i.e., we have to use 
-# the amount of calories consumed in the origin country) and when we calculate the
-# total visitor days per year who left the home country we also use the amount of
-# calories consumed in the origin country.
-touristOverNightData.8.1[, baselineCalDayDestCountry := NULL]
+# Now, we'll use only the baselineCalDayOrigCountry.
+touristOverNightData.7.2[, baselineCalDayDestCountry := NULL]
 
 ## calculate total visitor days per year who leaves your country using the baseline
-daysOut.9 <- touristOverNightData.8.1[, list(daysOut = sum(totVisDays * baselineCalDayOrigCountry)),
+daysOut.8 <- touristOverNightData.7.2[, list(daysOut = sum(totVisDays * baselineCalDayOrigCountry)),
                                       by = c('orig', 'year')]
 
 ## calculate total visitor days per year who comes to the country
-daysIn.10 <- touristOverNightData.8.1[, list(daysIn = sum(totVisDays * baselineCalDayOrigCountry)),
-                                      by = c('dest', 'year')]
+daysIn.9 <- touristOverNightData.7.2[, list(daysIn = sum(totVisDays * baselineCalDayOrigCountry)),
+                                     by = c('dest', 'year')]
 
 ## change column name from "orig" to "country"
-setnames(daysOut.9, 'orig', 'country')
+setnames(daysOut.8, 'orig', 'country')
 
 ## change column name from "dest" to "country"
-setnames(daysIn.10, 'dest', 'country')
+setnames(daysIn.9, 'dest', 'country')
 
 ##-------------
 ## tourist data
 ##-------------
 
 ## merge daysOut and daysIn to allow calculation of days net per country and year
-tourismDays.11 <- merge(daysOut.9, daysIn.10, by=c("country", "year"), all.x = TRUE)
-tourismDays.11[, daysNet := daysIn - daysOut]
+tourismDays.10 <- merge(daysOut.8, daysIn.9, by=c("country", "year"), all.x = TRUE)
+tourismDays.10[, daysNet := daysIn - daysOut]
 
-## Merge tourismDays.11 with the food consumption data
-setkey(tourismDays.11, "country", "year")
+## Merge tourismDays.10 with the food consumption data
+setkey(tourismDays.10, "country", "year")
 setkey(foodConsumptionPopData.3, "country", "year")
 
-foodTouristConsumption.12 <- merge(foodConsumptionPopData.3, tourismDays.11, by = c("country", "year"), 
+foodTouristConsumption.11 <- merge(foodConsumptionPopData.3, tourismDays.10, by = c("country", "year"), 
                                    all.x = T)
 
-foodTouristConsumption.12[, calOutCountry := daysOut * calPerPersonPerDay]
-foodTouristConsumption.12[, calInCountry := daysIn * calPerPersonPerDay]
-foodTouristConsumption.12[, calNetCountry := daysNet * calPerPersonPerDay]
+foodTouristConsumption.11[, calOutCountry := daysOut * calPerPersonPerDay]
+foodTouristConsumption.11[, calInCountry := daysIn * calPerPersonPerDay]
+foodTouristConsumption.11[, calNetCountry := daysNet * calPerPersonPerDay]
 
 ## Get rid of some of the columns that we don't need anymore:
-foodTouristConsumption.12[, c("totalFood", "valueCal", "pop", "totDaysNet", "calPerPersonPerDay", "daysOut", 
+foodTouristConsumption.11[, c("totalFood", "pop", "valueCal", "calPerPersonPerDay", "daysOut", 
                               "daysIn", "daysNet", "calOutCountry", "calInCountry") := NULL]
 
 ## Net calories
-foodTouristConsumption.12[, tourismElement:= "100"]
-foodTouristConsumption.12[, flagObservationStatus:= "I"]
-foodTouristConsumption.12[, flagMethod:= "e"]
+foodTouristConsumption.11[, tourismElement:= "100"]
+foodTouristConsumption.11[, flagObservationStatus:= "I"]
+foodTouristConsumption.11[, flagMethod:= "e"]
 
 # Save the data
 
-setnames(foodTouristConsumption.12,
+setnames(foodTouristConsumption.11,
          old = c("country", "year", "item", "calNetCountry"),
          new = c("geographicAreaM49", "timePointYears", "measuredItemCPC", "Value"))
-setcolorder(foodTouristConsumption.12,
+setcolorder(foodTouristConsumption.11,
             c("timePointYears", "geographicAreaM49", "measuredItemCPC",
               "tourismElement", "Value", "flagObservationStatus", "flagMethod"))
 
-stats = SaveData(domain = "tourism", dataset = "tourismprod", data = foodTouristConsumption.12)
+stats = SaveData(domain = "tourism", dataset = "tourismprod", data = foodTouristConsumption.11)
 
 paste0(stats$inserted, " observations written, ",
        stats$ignored, " weren't updated, ",
