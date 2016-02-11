@@ -1,0 +1,172 @@
+---
+title: "**faoswsTourist: Data Sources**"
+
+author: |
+  | **Bruno Caetano Vidigal**
+  | Food and Agriculture Organization of the United Nations
+output: pdf_document
+---
+---
+# About this document
+
+This vignette is a detailed guide of the various data sources used in the **Tourist Module**.
+
+
+```{r include=FALSE, cache=FALSE}
+## Load required functions
+library(data.table)
+library(knitr)
+library(igraph)
+```
+
+#1 Data Sources
+
+##1.1 Flow Chart
+
+## Description of how the Tourist Module works
+
+![](C:\Users\caetano\Desktop\flow_chart\touristDiagram.pdf)
+
+## 1.2 Example of tables
+
+* agriculture domain, aproduction dataset. In this table there are the commodities consumed by country and year provided by the Food Module.
+
+````{r, echo=FALSE}
+
+d=data.table(geographicAreaM49=4, measuredElement=5141, 
+measuredItemCPC=c("01221", "01229", "01290.90", "01312", "01314", "01315"),
+timePointYears = 2012, Value=c(169629.7, 210423.9, 469965.3, 27692.92, 6037.902, 823.302),
+flagObservationStatus = "I", flagMethod = "e")
+kable(d, format = "markdown", padding = 0)
+
+````
+
+
+* population domain, population dataset. In this table there are the population by country and year.
+
+````{r, echo=FALSE}
+
+d=data.table(geographicAreaM49=c(4, 4, 4, 8, 8, 8), measuredElementPopulation=21, 
+timePointYears = c(2012, 2011, 2010, 2012, 2011, 2010), Value=c(29825, 29105, 28398, 3162, 3154, 3150),
+flagPopulation = "/")
+kable(d, format = "markdown", padding = 0)
+
+````
+
+## 1.3 Graph
+It shows which domains/datasets were used in this module.
+
+````{r, echo=FALSE}
+options(warn=-1)
+relationsTables <- data.frame(from=c("agriculture/aproduction", "agriculture/aupus_ratio",
+                                     "population/population", "tourism/tourist_flow", "tourism/tourist_consumption"),
+                              to=c("Tourist Module", "Tourist Module", "Tourist Module",
+                                   "Tourist Module", "Tourist Module"))
+
+g <- graph.data.frame(relationsTables)
+plot(g, vertex.label.color="black")
+
+````
+
+#2 Process of Tourist Module
+
+
+1. to pull the **bidirectional movement data** with the **overnight visitor number** from **tourism/tourist_flow**;
+
+````{r, echo=FALSE}
+
+d=data.table(destinationCountryM49=76, originCountryM49=c(24, 24, 24, 32, 32, 32), tourismElement = 60,
+timePointYears = rep(c(2012, 2011, 2010), 2), 
+Value=c(37779, 37221, 38051, 1671604, 1593775, 1399592),
+flagObservationStatus = "",
+flagMethod = "")
+kable(d, format = "markdown", padding = 0)
+
+````
+
+
+2. to pull the **mean number of days stayed** (tourismElement = 20) and the **number of single-day visitors** (tourismElement = 30) from to all countries from **tourism/tourist_consumption**;
+
+````{r, echo=FALSE}
+
+d=data.table(geographicAreaM49=380, tourismElement=c(20, 20, 20, 30, 30, 30),
+timePointYears = rep(c(2012, 2011, 2010), 2), 
+Value=c(3.71, 3.72, 3.77, 29933.00, 29747.00, 29599.00),
+flagObservationStatus = "",
+flagMethod = "")
+kable(d, format = "markdown", padding = 0)
+````
+
+3. to compute the total number of **"tourist days"** from and to **each country** by adding the **day visitor counts** with the product of the **overnight visitor counts** and the **average nights per visitor**;
+
+````{r, echo=FALSE}
+
+d=data.table(originCountryM49=380, destinationCountryM49=c(100,100, 100, 104, 104, 104), tourismElement = 60,
+timePointYears = rep(c(2010, 2011, 2012), 2), 
+Value=c(639539.8, 671916.3, 660754.6, 57833.0, 78105.0, 76276.0))
+kable(d, format = "markdown", padding = 0)
+
+````
+
+
+4. to pull the **food data consumption** from each commodity for all the countries from **agriculture/aproduction (Food Module)**;
+
+````{r, echo=FALSE}
+
+d=data.table(geographicAreaM49=4, measuredElement=5141, 
+measuredItemCPC=c("01221", "01229", "01290.90", "01312", "01314", "01315"),
+timePointYears = 2012, Value=c(169629.7, 210423.9, 469965.3, 27692.92, 6037.902, 823.302),
+flagObservationStatus = "I", flagMethod = "e")
+kable(d, format = "markdown", padding = 0)
+
+````
+
+
+5. to compute the **calories data** for each commodity/country from **agriculture/aupus_ratio**;
+
+````{r, echo=FALSE}
+
+d=data.table(geographicAreaM49=4, measuredElement=261, timePointYearsSP = 0,
+measuredItemCPC = c("0115", "01221", "01229", "01315", "01323", "01330"), 
+Value=c(327, 13, 22, 75, 29, 67),
+flagPopulation = "N")
+kable(d, format = "markdown", padding = 0)
+
+````
+
+
+6. to pull the **population data** from population/population;
+
+````{r, echo=FALSE}
+
+d=data.table(geographicAreaM49=c(4, 4, 4, 8, 8, 8), measuredElementPopulation=21, 
+timePointYears = c(2012, 2011, 2010, 2012, 2011, 2010), Value=c(29825, 29105, 28398, 3162, 3154, 3150),
+flagPopulation = "/")
+kable(d, format = "markdown", padding = 0)
+
+````
+
+7. to compute **total calories per person per day** for each country;
+
+````{r, echo=FALSE}
+
+d=data.table(geographicAreaM49=100, measuredItemCPC=c("01211", "01212", "01213", "01214", "01215", "01216"), 
+timePointYears = 2012, Value=c(0.26, 2.69, 0.15, 0.18, 0.09, 0.00))
+kable(d, format = "markdown", padding = 0)
+
+````
+
+8. to merge the steps **3** and **7**, we are able to compute the amount of calories consumption for tourists.
+
+````{r, echo=FALSE}
+
+d=data.table(timePointYears = 2012, geographicAreaM49=380, 
+             measuredItemCPC = c("01192", "01211", "01212", "01213", "01214", "01215"),
+             tourismElement = 100,
+Value = c(60001870, 10445679, 106880731, 124113235, 157405729, 29847199), 
+        flagObservationStatus = "I", 
+        flagMethod = "e")
+kable(d, format = "markdown", padding = 0)
+
+````
+
