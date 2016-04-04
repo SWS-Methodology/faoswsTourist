@@ -1,4 +1,7 @@
-README.md
+sandbox
+.*.zip
+.*.xml
 .git
+README.md
 ^.*\.Rproj$
 ^\.Rproj\.user$
