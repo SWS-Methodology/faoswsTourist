@@ -5,17 +5,17 @@ library(reshape2)
 library(data.table)
 library(faoswsUtil)
 
-DEBUG_MODE = Sys.getenv("R_DEBUG_MODE")
-#R_SWS_SHARE_PATH = Sys.getenv("R_SWS_SHARE_PATH")
+R_SWS_SHARE_PATH = Sys.getenv("R_SWS_SHARE_PATH")
 
-if(!exists("DEBUG_MODE") || DEBUG_MODE == ""){
+if(CheckDebug()){
   token = "41558a20-c419-4821-8288-2dc7ccbc5ecf"
   GetTestEnvironment("https://hqlqasws1.hq.un.fao.org:8181/sws",token)
+  R_SWS_SHARE_PATH = "//hqlprsws1.hq.un.fao.org/sws_r_share"
 
-}
+  files = dir("~/Github/faoswsTourist/R", full.names = TRUE)
+  sapply(files, source)
+  }
 
-files = dir("~/Github/faoswsTourist/R", full.names = TRUE)
-sapply(files, source)
 
 ## set the year range to pull data from the SWS
 swsContext.computationParams$startYear <- as.numeric(swsContext.computationParams$startYear)
@@ -42,13 +42,12 @@ setnames(foodConsumption, old = c("geographicAreaM49", "measuredItemCPC",
 ## Giorgio puts the mapping table on SWS we will not need to change the
 ## the R_SWS_SHARE_PATH.
 
-R_SWS_SHARE_PATH = "//hqlprsws1.hq.un.fao.org/sws_r_share"
 foodConsumption[, type := getCommodityClassification(item)]
 foodConsumption = foodConsumption[type == "Consumable, main"]
 foodConsumption[, type := NULL]
 
 ## Pulling the calories data
-caloriesData <- getNutritiveFactors(geographicAreaM49 = foodConsumption$country,
+caloriesData <- faoswsUtil::getNutritiveFactors(geographicAreaM49 = foodConsumption$country,
                                     measuredElement = "261",
                                     measuredItemCPC = foodConsumption$item,
                                     timePointYearsSP = foodConsumption$year)
