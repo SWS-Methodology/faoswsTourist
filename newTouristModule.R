@@ -16,7 +16,6 @@ if(!exists("DEBUG_MODE") || DEBUG_MODE == ""){
 
 files = dir("~/Github/faoswsTourist/R", full.names = TRUE)
 sapply(files, source)
-source("~/Github/faoswsFood/R/getCommodityClassification.R")
 
 ## set the year range to pull data from the SWS
 swsContext.computationParams$startYear <- as.numeric(swsContext.computationParams$startYear)
