@@ -6,7 +6,7 @@ library(data.table)
 library(faoswsUtil)
 
 DEBUG_MODE = Sys.getenv("R_DEBUG_MODE")
-R_SWS_SHARE_PATH = Sys.getenv("R_SWS_SHARE_PATH")
+#R_SWS_SHARE_PATH = Sys.getenv("R_SWS_SHARE_PATH")
 
 if(!exists("DEBUG_MODE") || DEBUG_MODE == ""){
   token = "41558a20-c419-4821-8288-2dc7ccbc5ecf"
