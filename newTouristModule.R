@@ -5,8 +5,6 @@ library(reshape2)
 library(data.table)
 library(faoswsUtil)
 
-foodCode = "5141"
-
 DEBUG_MODE = Sys.getenv("R_DEBUG_MODE")
 R_SWS_SHARE_PATH = Sys.getenv("R_SWS_SHARE_PATH")
 
@@ -23,71 +21,51 @@ sapply(files, source)
 swsContext.computationParams$startYear <- as.numeric(swsContext.computationParams$startYear)
 swsContext.computationParams$endYear <- as.numeric(swsContext.computationParams$endYear)
 if(swsContext.computationParams$startYear > swsContext.computationParams$endYear)
-    stop("First Year should be smallest than End Year")
+  stop("First Year should be smallest than End Year")
 ## yearRange <- swsContext.datasets[[1]]@dimensions$timePointYears@keys
 yearRange <- swsContext.computationParams$startYear:swsContext.computationParams$endYear
 yearRange <- as.character(yearRange)
 
-# Step 1: Pull the food consumption
+## Step 1: Pull the food consumption
+foodConsumption <- getFoodConsumption(yearRange)
+foodConsumption[, measuredElement := NULL]
 
-## set the keys to get the calorie consumption, by individual FBS commodity for
-## each country from the FAO working system
-foodAreaCodes <- faosws::GetCodeList("agriculture", "aproduction", "geographicAreaM49")
-foodElementCodes <- faosws::GetCodeList("suafbs", "fbs", "measuredElementSuaFbs")
-
-## the Item codes contain a hierarchy.  We need to determine all the child
-## nodes of the hierarchy and add them to get total consumption.
-oldAreaCodes <- GetCodeList("agriculture", "aproduction", "geographicAreaM49")
-itemCodes <- GetCodeList("agriculture", "aproduction", "measuredItemCPC")[, code]
-
-## Pull the supply utilization account(SUA) food balance sheet (FBS) data from
-## SWS pertaining to calorie consumption from each commodity in each country
-countryCodeDim1 <- Dimension(name = "geographicAreaM49",
-                             keys = oldAreaCodes[type == "country", code])
-## A bit hackish: get population from total calories and total calories/person/day
-foodCodeDim2 <- Dimension(name = "measuredElement", keys = c(foodCode))
-itemCPCDim3 <- Dimension(name = "measuredItemCPC", keys = itemCodes)
-timePointYearsDim4 <- Dimension(name = "timePointYears", keys = yearRange)
-foodConsumptionKey <- DatasetKey(domain = "agriculture", dataset = "aproduction",
-                                 dimensions = list(countryCodeDim1, foodCodeDim2, itemCPCDim3, timePointYearsDim4))
-
-## download the calorie consumption data from the SWS
-foodConsumptionData.1 <- GetData(foodConsumptionKey, flags = FALSE)
-
-foodConsumptionData.1.1 <- dcast.data.table(foodConsumptionData.1,
-                                            geographicAreaM49 + measuredItemCPC + timePointYears ~ measuredElement,
-                                            value.var = "Value")
-
-## set the column names to small simple ones representing destination cuntry, database
-## element, year and total calories
-setnames(foodConsumptionData.1.1, old = c("geographicAreaM49", "measuredItemCPC", "timePointYears", "5141"),
+## Set the column names to small simple ones representing country, commodity,
+## year and total food consumption.
+setnames(foodConsumption, old = c("geographicAreaM49", "measuredItemCPC",
+                                  "timePointYears", "Value"),
          new = c("country", "item", "year", "totalFood"))
 
 ## Get the food classification for each commodity and select only the
 ## commodities that should have figures in the tourist module. In this case we'll
-## use just commodities with the food classification "Consumable, main". We need
-## to change the
+## use just commodities with the food classification "Consumable, main". When
+## Giorgio puts the mapping table on SWS we will not need to change the
+## the R_SWS_SHARE_PATH.
+
 R_SWS_SHARE_PATH = "//hqlprsws1.hq.un.fao.org/sws_r_share"
-foodConsumptionData.1.1[, type := faoswsFood::getCommodityClassification(item)]
-foodConsumptionData.1.1 = foodConsumptionData.1.1[type == "Consumable, main"]
-foodConsumptionData.1.1[, type := NULL]
+foodConsumption[, type := faoswsFood::getCommodityClassification(item)]
+foodConsumption = foodConsumption[type == "Consumable, main"]
+foodConsumption[, type := NULL]
 
 ## Pulling the calories data
-caloriesData <- getNutritiveFactors(geographicAreaM49 = foodConsumptionData.1.1$country,
+caloriesData <- getNutritiveFactors(geographicAreaM49 = foodConsumption$country,
                                     measuredElement = "261",
-                                    measuredItemCPC = foodConsumptionData.1.1$item,
-                                    timePointYearsSP = foodConsumptionData.1.1$year)
+                                    measuredItemCPC = foodConsumption$item,
+                                    timePointYearsSP = foodConsumption$year)
 
 setnames(caloriesData,
          c("geographicAreaM49", "measuredItemCPC", "timePointYearsSP", "Value"),
          c("country", "item", "year", "valueCal"))
 
 ## Merge the food data with calories data
-foodConsumptionData.1.1 <- merge(
-  foodConsumptionData.1.1, caloriesData[, c("country", "item", "year", "valueCal"),with=F],
-  by = c("country", "item", "year"), all.x=T)
+foodConsumption <- merge(foodConsumption,
+                         caloriesData[, c(
+                           "country", "item", "year", "valueCal"), with=F],
+                         by = c("country", "item", "year"), all.x=T)
 
 ## Step 2: Pull the population datasets
+
+oldAreaCodes <- GetCodeList("agriculture", "aproduction", "geographicAreaM49")
 countryCodePopDim1 <- Dimension(name = "geographicAreaM49",
                                 keys = oldAreaCodes[type == "country", code])
 elementPopDim2 <- Dimension(name = "measuredElementPopulation", keys = c("21"))
@@ -108,10 +86,10 @@ setnames(popData.2.1, old = c("geographicAreaM49", "timePointYears", "21"),
          new = c("country", "year", "pop"))
 
 ## Merge population data with food data
-setkey(foodConsumptionData.1.1, "country", "year")
+setkey(foodConsumption, "country", "year")
 setkey(popData.2.1, "country", "year")
 
-foodConsumptionPopData.3 <- merge(foodConsumptionData.1.1, popData.2.1, by = c("country", "year"),
+foodConsumptionPopData.3 <- merge(foodConsumption, popData.2.1, by = c("country", "year"),
                                   all.x = TRUE )
 
 ## compute total calories per person per day in orig country
@@ -314,8 +292,3 @@ stats = SaveData(domain = "tourism", dataset = "tourismprod", data = foodTourist
 paste0(stats$inserted, " observations written, ",
        stats$ignored, " weren't updated, ",
        stats$discarded, " had problems.")
-
-
-# save(foodTouristConsumption.11, file = paste0(R_SWS_SHARE_PATH, "/caetano/tourist_",
-#                                                        gsub(" |:|-", "_", Sys.time()), ".RData"))
-
