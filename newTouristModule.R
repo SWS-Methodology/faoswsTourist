@@ -16,6 +16,7 @@ if(!exists("DEBUG_MODE") || DEBUG_MODE == ""){
 
 files = dir("~/Github/faoswsTourist/R", full.names = TRUE)
 sapply(files, source)
+source("~/Github/faoswsFood/R/getCommodityClassification.R")
 
 ## set the year range to pull data from the SWS
 swsContext.computationParams$startYear <- as.numeric(swsContext.computationParams$startYear)
@@ -43,7 +44,7 @@ setnames(foodConsumption, old = c("geographicAreaM49", "measuredItemCPC",
 ## the R_SWS_SHARE_PATH.
 
 R_SWS_SHARE_PATH = "//hqlprsws1.hq.un.fao.org/sws_r_share"
-foodConsumption[, type := faoswsFood::getCommodityClassification(item)]
+foodConsumption[, type := getCommodityClassification(item)]
 foodConsumption = foodConsumption[type == "Consumable, main"]
 foodConsumption[, type := NULL]
 
