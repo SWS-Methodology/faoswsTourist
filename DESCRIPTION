@@ -9,6 +9,11 @@ Description: Package to perform the imputation to account for consumption of
     tourist
 URL: https://github.com/SWS-Methodology/faoswsTourist
 License: GPL (>= 3)
+Depends:
+    faosws, 
+	data.table
+Imports:
+    faoswsUtil
 swsDatasetDepends: tourism:tourist_flow,
     tourism:tourist_consumption,
     agriculture:agriculture,
