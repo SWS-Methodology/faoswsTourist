@@ -8,7 +8,7 @@ Authors@R: c(person("Michael C.J.", "Kao", email = "michael.kao@fao.org", role =
 Description: Package to perform the imputation to account for consumption of
     tourist
 URL: https://github.com/SWS-Methodology/faoswsTourist
-License: GPL (>= 3)
+License: FAO
 Depends:
     faosws, 
 	data.table
