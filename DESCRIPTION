@@ -2,9 +2,9 @@ Package: faoswsTourist
 Type: Package
 Title: Package to perform the imputation to account for consumption of tourist
 Version: 0.0.1
-Date: 2015-11-24
-Authors@R: c(person("Michael C.J.", "Kao", role = c("aut", "cre"), email = "michael.kao@fao.org"))
-Maintainer: Bruno Caetano Vidigal <bruno.caetanovidigal@fao.org>
+Date: 2016-04-25
+Authors@R: c(person("Michael C.J.", "Kao", email = "michael.kao@fao.org", role = "aut"),
+             person("Bruno Caetano", "Vidigal", email = "bruno.caetanovidigal@fao.org", role = c("aut", "cre")))
 Description: Package to perform the imputation to account for consumption of
     tourist
 URL: https://github.com/SWS-Methodology/faoswsTourist
