@@ -16,7 +16,7 @@ Imports:
     faoswsUtil
 swsDatasetDepends: tourism:tourist_flow,
     tourism:tourist_consumption,
-    agriculture:agriculture,
+    agriculture:aproduction,
     population:population,
     agriculture:aupus_ratio
 swsModuleDepends: faoswsFood
