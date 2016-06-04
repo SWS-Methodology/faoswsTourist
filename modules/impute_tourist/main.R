@@ -7,15 +7,27 @@ library(faoswsUtil)
 
 R_SWS_SHARE_PATH = Sys.getenv("R_SWS_SHARE_PATH")
 
+# This return FALSE if on the Statistical Working System
 if(CheckDebug()){
-  token = "41558a20-c419-4821-8288-2dc7ccbc5ecf"
-  GetTestEnvironment("https://hqlqasws1.hq.un.fao.org:8181/sws",token)
-  R_SWS_SHARE_PATH = "//hqlprsws1.hq.un.fao.org/sws_r_share"
 
+  message("Not on server, so setting up environment...")
+
+  library(faoswsModules)
+  SETTINGS <- ReadSettings("modules/impute_tourist/sws.yml")
+
+  # If you're not on the system, your settings will overwrite any others
+  R_SWS_SHARE_PATH <- SETTINGS[["share"]]
+
+  # Define where your certificates are stored
+  SetClientFiles(SETTINGS[["certdir"]])
+
+  # Get session information from SWS. Token must be obtained from web interface
+  GetTestEnvironment(baseUrl = SETTINGS[["server"]],
+                     token = SETTINGS[["token"]])
   files = dir("~/Github/faoswsTourist/R", full.names = TRUE)
   sapply(files, source)
-  }
 
+}
 
 ## set the year range to pull data from the SWS
 swsContext.computationParams$startYear <- as.numeric(swsContext.computationParams$startYear)

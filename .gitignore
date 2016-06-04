@@ -3,3 +3,4 @@
 .Rhistory
 *.RData
 *.zip
+modules/impute_tourist/sws.yml
