@@ -37,6 +37,7 @@ if(swsContext.computationParams$startYear > swsContext.computationParams$endYear
 ## yearRange <- swsContext.datasets[[1]]@dimensions$timePointYears@keys
 yearRange <- swsContext.computationParams$startYear:swsContext.computationParams$endYear
 yearRange <- as.character(yearRange)
+## yearRange = as.character(c(1999:2014))
 
 ## Step 1: Pull the food consumption
 foodConsumption <- getFoodConsumption(yearRange)
@@ -279,10 +280,12 @@ foodTouristConsumption.11 <- merge(foodConsumptionPopData.3, tourismDays.10, by 
 foodTouristConsumption.11[, calOutCountry := daysOut * calPerPersonPerDay]
 foodTouristConsumption.11[, calInCountry := daysIn * calPerPersonPerDay]
 foodTouristConsumption.11[, calNetCountry := daysNet * calPerPersonPerDay]
+foodTouristConsumption.11[, netFood := calNetCountry/(valueCal * 10000)]
+
 
 ## Get rid of some of the columns that we don't need anymore:
 foodTouristConsumption.11[, c("totalFood", "pop", "valueCal", "calPerPersonPerDay", "daysOut",
-                              "daysIn", "daysNet", "calOutCountry", "calInCountry") := NULL]
+                              "daysIn", "daysNet", "calOutCountry", "calInCountry", "calNetCountry") := NULL]
 
 ## Net calories
 foodTouristConsumption.11[, tourismElement:= "100"]
@@ -292,7 +295,7 @@ foodTouristConsumption.11[, flagMethod:= "e"]
 # Save the data
 
 setnames(foodTouristConsumption.11,
-         old = c("country", "year", "item", "calNetCountry"),
+         old = c("country", "year", "item", "netFood"),
          new = c("geographicAreaM49", "timePointYears", "measuredItemCPC", "Value"))
 setcolorder(foodTouristConsumption.11,
             c("timePointYears", "geographicAreaM49", "measuredItemCPC",
