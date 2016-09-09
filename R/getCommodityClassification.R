@@ -33,10 +33,10 @@ getCommodityClassification <- function(cpcCodes) {
     ## This table should has 4 columns: cpcCode, fclCode, description and type.
     ## Where the variable "type" has 3 classifications.
 
-    #foodClassification = faosws::ReadDatatable(table = "foodClassification")
+    foodClassification = faosws::ReadDatatable(table = "food_classification")
 
     ## Whereas the table is not on SWS
-    foodClassification = fread(paste0(R_SWS_SHARE_PATH, "/caetano/food/food_classification.csv"))
+    # foodClassification = fread(paste0(R_SWS_SHARE_PATH, "/caetano/food/food_classification.csv"))
 
     ## Merge the cpcCodes with the foodClassification
     result = merge(data.table(measuredItemCPC = cpcCodes, index = 1:length(cpcCodes)),

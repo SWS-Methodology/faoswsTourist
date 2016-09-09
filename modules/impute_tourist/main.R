@@ -1,9 +1,13 @@
 ## Load required functions
+suppressMessages({
 library(faosws)
 library(dplyr)
 library(reshape2)
 library(data.table)
 library(faoswsUtil)
+library(faoswsTourist)
+})
+
 
 R_SWS_SHARE_PATH = Sys.getenv("R_SWS_SHARE_PATH")
 
@@ -56,7 +60,7 @@ setnames(foodConsumption, old = c("geographicAreaM49", "measuredItemCPC",
 ## the R_SWS_SHARE_PATH.
 
 foodConsumption[, type := getCommodityClassification(item)]
-foodConsumption = foodConsumption[type == "Consumable, main"]
+foodConsumption = foodConsumption[type %in% c("Food Estimate", "Food residual", "Food Residual")]
 foodConsumption[, type := NULL]
 
 ## Pulling the calories data
