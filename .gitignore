@@ -1,6 +1,15 @@
 .Rproj.user
-*.Rproj
 .Rhistory
-*.RData
+.RData
+*.zip
+Adhoc Test
+
+#Binary files
+*.pdf
+*.jar
+*.png
+
+# Output files
+*.csv
 *.zip
 modules/impute_tourist/sws.yml

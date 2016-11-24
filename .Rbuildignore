@@ -1,7 +1,7 @@
-sandbox
-.*.zip
-.*.xml
-.git
-README.md
+^README.md$
+^.git
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^sandbox/
+^modules/
+^Data/
