@@ -15,7 +15,7 @@
             <Label>First year</Label>
             <Description>The start of the computation period</Description>
             <Compulsory>true</Compulsory>
-            <Min>1961</Min>
+            <Min>1991</Min>
             <Max>2013</Max>
     </Param>
     <Param xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="Number">
@@ -23,7 +23,7 @@
             <Label>Last year</Label>
             <Description>The end of the computation period</Description>
             <Compulsory>true</Compulsory>
-            <Min>1961</Min>
+            <Min>1991</Min>
             <Max>2013</Max>
     </Param>
 	</Params>
