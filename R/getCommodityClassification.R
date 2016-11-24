@@ -34,7 +34,7 @@ getCommodityClassification <- function(cpcCodes) {
     ## Where the variable "type" has 3 classifications.
 
     foodClassification = faosws::ReadDatatable(table = "food_classification")
-
+    setnames(foodClassification, "measured_item_cpc", "measuredItemCPC")
     ## Whereas the table is not on SWS
     # foodClassification = fread(paste0(R_SWS_SHARE_PATH, "/caetano/food/food_classification.csv"))
 
