@@ -39,7 +39,7 @@ if(CheckDebug()){
 startYear <- as.numeric(ifelse(is.null(swsContext.computationParams$startYear), "1991",
                                       swsContext.computationParams$startYear))
 
-endYear <- as.numeric(ifelse(is.null(swsContext.computationParams$endYear), "2013",
+endYear <- as.numeric(ifelse(is.null(swsContext.computationParams$endYear), "2014",
                                swsContext.computationParams$endYear))
 
 # swsContext.computationParams$startYear <- as.numeric(swsContext.computationParams$startYear)
@@ -71,6 +71,7 @@ sessionKey = swsContext.datasets[[1]]
 completeImputationTouristKey = getCompleteImputationKey("tourist")
 
 completeImputationFoodKey = getCompleteImputationKey("food")
+completeImputationFoodKey@dataset = "fooddata"
 
 ##' Selected the key based on the input parameter
 selectedKey =

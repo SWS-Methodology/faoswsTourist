@@ -1,5 +1,6 @@
-﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<RScript xmlns="http://www.fao.org/rScript">
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<RScript xmlns="http://www.fao.org/rScript" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.fao.org/rScript rScript.xsd ">
     <Name>touristModule</Name>
     <Description>Compute Tourist Consumption</Description>
     <Category>Computation</Category>
@@ -10,34 +11,56 @@
         </Author>
     </Authors>
 	<Params>
-    <Param xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="Number">
+    <Param xsi:type="Number">
             <Code>startYear</Code>
             <Label>First year</Label>
-            <Description>The start of the computation period</Description>
+            <Description>
+			The start of the computation period. Currently is set to 1991.
+			</Description>
             <Compulsory>true</Compulsory>
             <Min>1991</Min>
-            <Max>2013</Max>
+            <Max>2014</Max>
     </Param>
-    <Param xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="Number">
+    <Param xsi:type="Number">
             <Code>endYear</Code>
             <Label>Last year</Label>
-            <Description>The end of the computation period</Description>
+            <Description>
+			The end of the computation period. Currently is set to 2014.
+			</Description>
             <Compulsory>true</Compulsory>
             <Min>1991</Min>
-            <Max>2013</Max>
+            <Max>2014</Max>
+    </Param>
+		<Param xsi:type="List">
+	    <Code>validation_selection</Code>
+	    <Label>Perform validation on </Label>
+		  <Description>
+			  Please specify the selection to perform imputation.
+		  </Description>
+		  <Compulsory>true</Compulsory>
+      <Options>
+				<Option>
+					<Label> Selected session </Label>
+					<Value>session</Value>
+				</Option>
+				<Option>
+					<Label> All Production Data </Label>
+					<Value>all</Value>
+				</Option>
+			</Options>
     </Param>
 	</Params>
-    <Datasets>
-        <MainDataset>
-            <Code>tourismprod</Code>
+	<Datasets>
+		<MainDataset>
+		<Code>tourismprod</Code>
             <SelectableDimensions>
                 <SelectableDimension compulsory="false">geographicAreaM49</SelectableDimension>
                 <SelectableDimension compulsory="false">tourismElement</SelectableDimension>
                 <SelectableDimension compulsory="false">measuredItemCPC</SelectableDimension>
                 <SelectableDimension compulsory="false">timePointYears</SelectableDimension>
-            </SelectableDimensions>
-        </MainDataset>
-    </Datasets>
-    <InteractiveValidation>false</InteractiveValidation>
-    <Background>true</Background>
+			</SelectableDimensions>
+		</MainDataset>
+	</Datasets>
+	<InteractiveValidation>false</InteractiveValidation>
+	<Background>false</Background>
 </RScript>
