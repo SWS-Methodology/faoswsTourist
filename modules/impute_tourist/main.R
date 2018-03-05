@@ -36,20 +36,19 @@ if(CheckDebug()){
 
 ## set the year range to pull data from the SWS
 
-startYear <- as.numeric(ifelse(is.null(swsContext.computationParams$startYear), "1991",
-                                      swsContext.computationParams$startYear))
+# Parameters: year to process
 
-endYear <- as.numeric(ifelse(is.null(swsContext.computationParams$endYear), "2015",
-                               swsContext.computationParams$endYear))
+minYearToProcess <- as.numeric(ifelse(is.null(swsContext.computationParams$minYearToProcess), "1991",
+                                      swsContext.computationParams$minYearToProcess))
 
-# swsContext.computationParams$startYear <- as.numeric(swsContext.computationParams$startYear)
-# swsContext.computationParams$endYear <- as.numeric(swsContext.computationParams$endYear)
-if(startYear > endYear)
-  stop("First Year should be smallest than End Year")
-## yearRange <- swsContext.datasets[[1]]@dimensions$timePointYears@keys
-yearRange <- startYear:endYear
+maxYearToProcess <- as.numeric(ifelse(is.null(swsContext.computationParams$maxYearToProcess), "2016",
+                                      swsContext.computationParams$maxYearToProcess))
+
+if(minYearToProcess > maxYearToProcess | maxYearToProcess < minYearToProcess)
+  stop("Please check the time range for the years to be processed")
+
+yearRange <- minYearToProcess:maxYearToProcess
 yearRange <- as.character(yearRange)
-## yearRange = as.character(c(1999:2014))
 
 ################################################################################
 ##' Obtain computation parameter, this parameter determines whether only
@@ -63,9 +62,6 @@ if(CheckDebug()){
 
 ##' Get session key and dataset configuration
 sessionKey = swsContext.datasets[[1]]
-## datasetConfig = GetDatasetConfig(domainCode = sessionKey@domain,
-##                                  datasetCode = sessionKey@dataset)
-
 
 ##' Obtain the complete imputation Datakey
 completeImputationTouristKey = getCompleteImputationKey("tourist")
@@ -84,8 +80,6 @@ selectedKey =
 destinationCountryM49 <- selectedKey@dimensions$destinationCountryM49@keys
 originCountryM49 <- selectedKey@dimensions$originCountryM49@keys
 areaCodesM49 <- unique(destinationCountryM49, originCountryM49)
-
-################################################################################
 
 ## Step 1: Pull the food consumption
 # foodConsumption <- getFoodConsumption(yearRange)
@@ -147,7 +141,7 @@ setkey(popData, "country", "year")
 foodConsumptionPop <- merge(foodConsumption, popData, by = c("country", "year"),
                                   all.x = TRUE )
 
-## compute total calories per person per day in orig country
+## Compute total calories per person per day in orig country
 ## Population is in 1000s
 foodConsumptionPop[, calPerPersonPerDay := (totalFood * valueCal * 10000) / 365 / (pop * 1000)]
 
@@ -166,7 +160,7 @@ touristFlowData <- GetData(completeImputationTouristKey, flags = FALSE)
 
 cat("Tourist data loaded with ", nrow(touristFlowData), " rows.")
 
-## remove the tourismElement column which is of no value to me here
+## Remove the tourismElement column which is of no value to me here
 touristFlowData[, "tourismElement" := NULL]
 
 ## Change column names to small simple ones representing destination, origin,
@@ -177,10 +171,8 @@ setnames(touristFlowData, old = c("destinationCountryM49", "originCountryM49", "
 touristFlowData[, destOrigin := as.character(paste(dest, orig, sep = ","))]
 
 ## Filling the full time series
-
 timeSeriesDataFlow <- as.data.table(expand.grid(destOrigin = unique(touristFlowData$destOrigin),
                                             year = yearRange))
-
 timeSeriesDataFlow <- merge(timeSeriesDataFlow,
                         touristFlowData[, c("destOrigin", "dest", "orig", "year", "overnightVisitNum"),
                                     with = F], by = c("destOrigin", "year"), all.x = T)
@@ -432,8 +424,11 @@ setcolorder(foodTouristConsumption,
               "tourismElement", "Value", "flagObservationStatus", "flagMethod"))
 
 foodTouristConsumption <- foodTouristConsumption[!is.na(Value)]
-stats = SaveData(domain = "tourism", dataset = "tourismprod", data = foodTouristConsumption)
+# foodTouristConsumption <- foodTouristConsumption[geographicAreaM49 %in% c(360, 454, 484, 686, 1248, 392, 716)]
+stats = SaveData(domain = "tourism", dataset = "tourismprod",
+                 data = foodTouristConsumption, waitTimeout = 1800)
 
-paste0(stats$inserted, " observations written, ",
+paste0("Tourist module completed successfully!!!",
+       stats$inserted, " observations written, ",
        stats$ignored, " weren't updated, ",
        stats$discarded, " had problems.")

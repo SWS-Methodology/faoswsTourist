@@ -6,30 +6,30 @@
     <Category>Computation</Category>
     <Authors>
         <Author>
-            <Name>Bruno Vidigal</Name>
+            <Name>Bruno Caetano Vidigal</Name>
             <Mail>bruno.caetanovidigal@fao.org</Mail>
         </Author>
     </Authors>
 	<Params>
     <Param xsi:type="Number">
-            <Code>startYear</Code>
-            <Label>First year</Label>
+            <Code>minYearToProcess</Code>
+            <Label>Min year to process</Label>
             <Description>
 			The start of the computation period. Currently is set to 1991.
 			</Description>
             <Compulsory>true</Compulsory>
             <Min>1991</Min>
-            <Max>2014</Max>
+            <Max>2016</Max>
     </Param>
     <Param xsi:type="Number">
-            <Code>endYear</Code>
-            <Label>Last year</Label>
+            <Code>maxYearToProcess</Code>
+            <Label>Max year to process</Label>
             <Description>
-			The end of the computation period. Currently is set to 2014.
+			The end of the computation period. Currently is set to 2016.
 			</Description>
             <Compulsory>true</Compulsory>
             <Min>1991</Min>
-            <Max>2014</Max>
+            <Max>2016</Max>
     </Param>
 		<Param xsi:type="List">
 	    <Code>validation_selection</Code>
