@@ -97,9 +97,9 @@ setnames(foodConsumption, old = c("geographicAreaM49", "measuredItemCPC",
 ## commodities that should have figures in the tourist module. In this case we'll
 ## use just commodities with the food classification "Food Estimate" and "Food Residual".
 
-foodConsumption[, type := getCommodityClassification(item)]
-foodConsumption = foodConsumption[type %in% c("Food Estimate", "Food Residual")]
-foodConsumption[, type := NULL]
+# foodConsumption[, type := getCommodityClassification(item)]
+# foodConsumption = foodConsumption[type %in% c("Food Estimate", "Food Residual")]
+# foodConsumption[, type := NULL]
 
 ## Pulling the calories data
 caloriesData <- faoswsUtil::getNutritiveFactors(geographicAreaM49 = foodConsumption$country,
@@ -188,8 +188,8 @@ tab = tab[order(-numbMissing)]
 timeSeriesDataFlow <- merge(timeSeriesDataFlow, tab, by = "destOrigin")
 
 timeSeriesDataFlow[numbMissing < max(numbMissing),
-               interpolationSpline := na.interpolation(
-                 overnightVisitNum, option ="spline"), by = list(destOrigin)]
+               interpolationMA := na.ma(
+                 overnightVisitNum, weighting = "linear"), by = list(destOrigin)]
 
 missingCases <- timeSeriesDataFlow[numbMissing == max(numbMissing) & !is.na(overnightVisitNum),
                                c("destOrigin", "overnightVisitNum"), with = F]
@@ -199,9 +199,9 @@ timeSeriesDataFlow <- merge(timeSeriesDataFlow,
                         by = "destOrigin",
                         all.x = T)
 
-timeSeriesDataFlow[, overnightVisitNum := interpolationSpline]
+timeSeriesDataFlow[, overnightVisitNum := interpolationMA]
 timeSeriesDataFlow[is.na(overnightVisitNum), overnightVisitNum := overnightVisitNum.y]
-timeSeriesDataFlow[, c("overnightVisitNum.x", "overnightVisitNum.y", "interpolationSpline",
+timeSeriesDataFlow[, c("overnightVisitNum.x", "overnightVisitNum.y", "interpolationMA",
                    "numbMissing", "destOrigin") := NULL]
 
 ## Step 4: Pull the tourist consumption data
@@ -259,9 +259,13 @@ auxTabSameDay = auxTabSameDay[order(-numbMissing)]
 
 timeSeriesDataConsumption <- merge(timeSeriesDataConsumption, auxTabSameDay, by = "dest")
 
-timeSeriesDataConsumption[numbMissing < max(numbMissing),
-                          interpSplineSameDayVistNum := na.interpolation(
-                            sameDayVistNum, option ="spline"),
+# timeSeriesDataConsumption[numbMissing < length(yearRange) - 1,
+#                           interpSplineSameDayVistNum := na.interpolation(
+#                             sameDayVistNum, option ="spline"),
+#                           by = list(dest)]
+
+timeSeriesDataConsumption[numbMissing < length(yearRange) - 1,
+                          interpMASameDayVistNum := na.ma(sameDayVistNum, weighting = "linear"),
                           by = list(dest)]
 
 auxTabAverageNightsDays <- timeSeriesDataConsumption[is.na(averageNightsDays), .N, dest]
@@ -270,15 +274,19 @@ auxTabAverageNightsDays = auxTabAverageNightsDays[order(-numbMissing)]
 
 timeSeriesDataConsumption <- merge(timeSeriesDataConsumption, auxTabAverageNightsDays, by = "dest")
 
-timeSeriesDataConsumption[numbMissing.y < max(numbMissing.y),
-                          interpSplineAverageNightsDays := na.interpolation(
-                            averageNightsDays, option ="spline"), by = list(dest)]
+# timeSeriesDataConsumption[numbMissing.y < max(numbMissing.y),
+#                           interpSplineAverageNightsDays := na.interpolation(
+#                             averageNightsDays, option ="spline"), by = list(dest)]
+
+timeSeriesDataConsumption[numbMissing.y < length(yearRange) - 1,
+                          interpMAAverageNightsDays := na.ma(
+                            averageNightsDays, weighting = "linear"), by = list(dest)]
 
 timeSeriesDataConsumption[, c("sameDayVistNum", "averageNightsDays",
                               "numbMissing.x", "numbMissing.y") := NULL]
 
-setnames(timeSeriesDataConsumption, "interpSplineSameDayVistNum", "sameDayVistNum")
-setnames(timeSeriesDataConsumption, "interpSplineAverageNightsDays", "averageNightsDays")
+setnames(timeSeriesDataConsumption, "interpMASameDayVistNum", "sameDayVistNum")
+setnames(timeSeriesDataConsumption, "interpMAAverageNightsDays", "averageNightsDays")
 
 ## Replace missing day visitor numbers (NA) with zero, because it won't effect
 ## end calculations, but NA's cause equations to fail
