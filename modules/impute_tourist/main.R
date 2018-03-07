@@ -118,20 +118,20 @@ foodConsumption <- merge(foodConsumption,
 
 ## Step 2: Pull the population datasets
 ## The element 21 contains the FBS population numbers
-populationCodes <- "21"
-dimPop <- Dimension(name = "measuredElementPopulation", keys = populationCodes)
+populationCodes <- "511"
+dimPop <- Dimension(name = "measuredElement", keys = populationCodes)
 dimM49 <- Dimension(name = "geographicAreaM49", keys = areaCodesM49)
 dimTime <- Dimension(name = "timePointYears", keys = yearRange)
 
-popKey <- DatasetKey(domain = "population", dataset = "population",
+popKey <- DatasetKey(domain = "population", dataset = "population_unpd",
                      dimensions = list(dimM49, dimPop, dimTime))
 popData <- GetData(popKey, flags = FALSE)
 
 popData <- dcast.data.table(popData,
-                            geographicAreaM49 + timePointYears ~ measuredElementPopulation,
+                            geographicAreaM49 + timePointYears ~ measuredElement,
                                 value.var = "Value")
 setnames(popData,
-         old = c("geographicAreaM49", "timePointYears", "21"),
+         old = c("geographicAreaM49", "timePointYears", "511"),
          new = c("country", "year", "pop"))
 
 ## Merge population data with food data
