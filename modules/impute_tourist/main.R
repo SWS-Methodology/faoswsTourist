@@ -134,6 +134,8 @@ setnames(popData,
          old = c("geographicAreaM49", "timePointYears", "511"),
          new = c("country", "year", "pop"))
 
+popData[country == 156, country := "1248"]
+
 ## Merge population data with food data
 setkey(foodConsumption, "country", "year")
 setkey(popData, "country", "year")
@@ -157,6 +159,8 @@ calorieCountryDay[, baselineCalDay:= totalCalDay/2500]
 # to all countries.
 
 touristFlowData <- GetData(completeImputationTouristKey, flags = FALSE)
+touristFlowData[destinationCountryM49 == "156", destinationCountryM49 := "1248"]
+touristFlowData[originCountryM49 == "156", originCountryM49 := "1248"]
 
 cat("Tourist data loaded with ", nrow(touristFlowData), " rows.")
 
@@ -218,7 +222,7 @@ touConsumptionKey = DatasetKey(domain = "tourism", dataset = "tourist_consumptio
                             dimensions = list(dimM49, dimTouElements, dimTime))
 
 touConsumptionData <- GetData(touConsumptionKey, flags = FALSE)
-
+touConsumptionData[geographicAreaM49 == "156", geographicAreaM49 := "1248"]
 ## Set the column names to small simple ones representing destination, database
 ## element, year and value
 setnames(touConsumptionData, old = c("geographicAreaM49", "tourismElement", "timePointYears", "Value"),
@@ -432,6 +436,13 @@ setcolorder(foodTouristConsumption,
               "tourismElement", "Value", "flagObservationStatus", "flagMethod"))
 
 foodTouristConsumption <- foodTouristConsumption[!is.na(Value)]
+# country48 <- c("4","24","50","68","104","120","140","144","148","1248","170","178","218","320",
+#                "324","332","356","360","368","384","404","116","408","450","454","484","508",
+#                "524","562","566","586","604","608","716","646","686","762","834","764","800",
+#                "854","704","231","887","894","760","862","860")
+#
+# foodTouristConsumption <- foodTouristConsumption[geographicAreaM49 %in% country48]
+
 # foodTouristConsumption <- foodTouristConsumption[geographicAreaM49 %in% c(360, 454, 484, 686, 1248, 392, 716)]
 stats = SaveData(domain = "tourism", dataset = "tourismprod",
                  data = foodTouristConsumption, waitTimeout = 1800)
