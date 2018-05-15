@@ -38,7 +38,7 @@ if(CheckDebug()){
 
 # Parameters: year to process
 
-minYearToProcess <- as.numeric(ifelse(is.null(swsContext.computationParams$minYearToProcess), "1991",
+minYearToProcess <- as.numeric(ifelse(is.null(swsContext.computationParams$minYearToProcess), "1990",
                                       swsContext.computationParams$minYearToProcess))
 
 maxYearToProcess <- as.numeric(ifelse(is.null(swsContext.computationParams$maxYearToProcess), "2016",
@@ -47,8 +47,7 @@ maxYearToProcess <- as.numeric(ifelse(is.null(swsContext.computationParams$maxYe
 if(minYearToProcess > maxYearToProcess | maxYearToProcess < minYearToProcess)
   stop("Please check the time range for the years to be processed")
 
-yearRange <- minYearToProcess:maxYearToProcess
-yearRange <- as.character(yearRange)
+yearRange <- as.character(minYearToProcess:maxYearToProcess)
 
 ################################################################################
 ##' Obtain computation parameter, this parameter determines whether only
@@ -65,17 +64,17 @@ sessionKey = swsContext.datasets[[1]]
 
 ##' Obtain the complete imputation Datakey
 completeImputationTouristKey = getCompleteImputationKey("tourist")
-completeImputationTouristKey@dimensions$timePointYears@keys = yearRange
+completeImputationTouristKey@dimensions$timePointYears@keys <- yearRange
 
 completeImputationFoodKey = getCompleteImputationKey("food")
-completeImputationFoodKey@dataset = "fooddata"
-completeImputationFoodKey@dimensions$timePointYears@keys = yearRange
+completeImputationFoodKey@dataset <- "fooddata"
+completeImputationFoodKey@dimensions$timePointYears@keys <- yearRange
 
 ##' Selected the key based on the input parameter
 selectedKey =
   switch(validationRange,
-         "session" = sessionKey, # if "validationRange" is "session": selectedKey <- sessionKey
-         "all" = completeImputationTouristKey) # if "validationRange" is "all": selectedKey <- completeImputationkey
+         "session" = sessionKey,
+         "all" = completeImputationTouristKey)
 
 destinationCountryM49 <- selectedKey@dimensions$destinationCountryM49@keys
 originCountryM49 <- selectedKey@dimensions$originCountryM49@keys
@@ -93,14 +92,6 @@ setnames(foodConsumption, old = c("geographicAreaM49", "measuredItemCPC",
                                   "timePointYears", "Value"),
          new = c("country", "item", "year", "totalFood"))
 
-## Get the food classification for each commodity and select only the
-## commodities that should have figures in the tourist module. In this case we'll
-## use just commodities with the food classification "Food Estimate" and "Food Residual".
-
-# foodConsumption[, type := getCommodityClassification(item)]
-# foodConsumption = foodConsumption[type %in% c("Food Estimate", "Food Residual")]
-# foodConsumption[, type := NULL]
-
 ## Pulling the calories data
 caloriesData <- faoswsUtil::getNutritiveFactors(geographicAreaM49 = foodConsumption$country,
                                     measuredElement = "261",
@@ -117,7 +108,7 @@ foodConsumption <- merge(foodConsumption,
                          by = c("country", "item", "year"), all.x=T)
 
 ## Step 2: Pull the population datasets
-## The element 21 contains the FBS population numbers
+## The element 511 contains the FBS population numbers
 populationCodes <- "511"
 dimPop <- Dimension(name = "measuredElement", keys = populationCodes)
 dimM49 <- Dimension(name = "geographicAreaM49", keys = areaCodesM49)
@@ -134,6 +125,7 @@ setnames(popData,
          old = c("geographicAreaM49", "timePointYears", "511"),
          new = c("country", "year", "pop"))
 
+# China
 popData[country == 156, country := "1248"]
 
 ## Merge population data with food data
@@ -151,14 +143,16 @@ foodConsumptionPop[, calPerPersonPerDay := (totalFood * valueCal * 10000) / 365 
 calorieCountryDay <- foodConsumptionPop[, list(totalCalDay = sum(calPerPersonPerDay, na.rm=T)),
                                                 by=list(country, year)]
 
-## Let's to create the baseline consumption level (2500 calories per person per day).
+## Let's create the baseline consumption level (2500 calories per person per day).
 calorieCountryDay[, baselineCalDay:= totalCalDay/2500]
 
 ## Step 3: Pull the tourist data
 ## Pull the bidirectional movement data from SWS pertaining to tourist visitors
-# to all countries.
+## to all countries.
 
 touristFlowData <- GetData(completeImputationTouristKey, flags = FALSE)
+
+# China
 touristFlowData[destinationCountryM49 == "156", destinationCountryM49 := "1248"]
 touristFlowData[originCountryM49 == "156", originCountryM49 := "1248"]
 
@@ -177,6 +171,7 @@ touristFlowData[, destOrigin := as.character(paste(dest, orig, sep = ","))]
 ## Filling the full time series
 timeSeriesDataFlow <- as.data.table(expand.grid(destOrigin = unique(touristFlowData$destOrigin),
                                             year = yearRange))
+
 timeSeriesDataFlow <- merge(timeSeriesDataFlow,
                         touristFlowData[, c("destOrigin", "dest", "orig", "year", "overnightVisitNum"),
                                     with = F], by = c("destOrigin", "year"), all.x = T)
@@ -187,7 +182,7 @@ timeSeriesDataFlow[is.na(orig), orig := sub('.*,\\s*', '', destOrigin)]
 
 tab <- timeSeriesDataFlow[is.na(overnightVisitNum), .N, destOrigin]
 setnames(tab, "N", "numbMissing")
-tab = tab[order(-numbMissing)]
+tab <- tab[order(-numbMissing)]
 
 timeSeriesDataFlow <- merge(timeSeriesDataFlow, tab, by = "destOrigin")
 
@@ -222,6 +217,8 @@ touConsumptionKey = DatasetKey(domain = "tourism", dataset = "tourist_consumptio
                             dimensions = list(dimM49, dimTouElements, dimTime))
 
 touConsumptionData <- GetData(touConsumptionKey, flags = FALSE)
+
+# China
 touConsumptionData[geographicAreaM49 == "156", geographicAreaM49 := "1248"]
 ## Set the column names to small simple ones representing destination, database
 ## element, year and value
@@ -263,11 +260,6 @@ auxTabSameDay = auxTabSameDay[order(-numbMissing)]
 
 timeSeriesDataConsumption <- merge(timeSeriesDataConsumption, auxTabSameDay, by = "dest")
 
-# timeSeriesDataConsumption[numbMissing < length(yearRange) - 1,
-#                           interpSplineSameDayVistNum := na.interpolation(
-#                             sameDayVistNum, option ="spline"),
-#                           by = list(dest)]
-
 timeSeriesDataConsumption[numbMissing < length(yearRange) - 1,
                           interpMASameDayVistNum := na.ma(sameDayVistNum, weighting = "linear"),
                           by = list(dest)]
@@ -277,10 +269,6 @@ setnames(auxTabAverageNightsDays, "N", "numbMissing")
 auxTabAverageNightsDays = auxTabAverageNightsDays[order(-numbMissing)]
 
 timeSeriesDataConsumption <- merge(timeSeriesDataConsumption, auxTabAverageNightsDays, by = "dest")
-
-# timeSeriesDataConsumption[numbMissing.y < max(numbMissing.y),
-#                           interpSplineAverageNightsDays := na.interpolation(
-#                             averageNightsDays, option ="spline"), by = list(dest)]
 
 timeSeriesDataConsumption[numbMissing.y < length(yearRange) - 1,
                           interpMAAverageNightsDays := na.ma(
@@ -302,7 +290,7 @@ timeSeriesDataConsumption$sameDayVistNum[is.na(timeSeriesDataConsumption$sameDay
 touristData <- merge(timeSeriesDataFlow, timeSeriesDataConsumption,
                                 by=c("dest", "year"), all.x = TRUE)
 
-## rearrange the column order to make it easier to view
+## Rearrange the column order to make it easier to view
 touristData <- setcolorder(touristData,
                            neworder = c("year", "orig", "dest", "overnightVisitNum",
                                         "averageNightsDays", "sameDayVistNum"))
@@ -360,9 +348,8 @@ touristData[, baselineCalDayOrigCountry := ifelse(
 ## Now, we'll use only the baselineCalDayOrigCountry
 touristData[, baselineCalDayDestCountry := NULL]
 
-## There are combinations ofcountries (origin-destination that we don't have the
+## There are combinations of countries (origin-destination that we don't have the
 ## amount of calories consumed, so we are going to compute the average for those cases.
-
 
 averageCalTab <- touristData[, list(averageCal = mean(
   baselineCalDayOrigCountry, na.rm = T)),
@@ -391,7 +378,7 @@ setnames(daysIn, 'dest', 'country')
 ## tourist data
 ##-------------
 
-## merge daysOut and daysIn to allow calculation of days net per country and year
+## Merge daysOut and daysIn to allow calculation of days net per country and year
 tourismDays <- merge(daysOut, daysIn, by = c("country", "year"), all.x = TRUE)
 tourismDays[, daysNet := daysIn - daysOut]
 
@@ -406,15 +393,6 @@ foodTouristConsumption[, calOutCountry := daysOut * calPerPersonPerDay]
 foodTouristConsumption[, calInCountry := daysIn * calPerPersonPerDay]
 foodTouristConsumption[, calNetCountry := daysNet * calPerPersonPerDay]
 foodTouristConsumption[, netFood := calNetCountry/(valueCal * 10000)]
-
-# ## Compute the amount of food consumed by tourist by country/year
-#
-# finalTab <- foodTouristConsumption[, list(totalAvailableFood = sum(totalFood, na.rm = T),
-#                                           touristFood = sum(netFood, na.rm = T)),
-#                                    by = list(country, year)]
-#
-# finalTab[, touristPercent := touristFood/totalAvailableFood]
-# finalTab[country == 44]
 
 ## Get rid of some of the columns that we don't need anymore:
 foodTouristConsumption[, c("totalFood", "pop", "valueCal", "calPerPersonPerDay",
@@ -436,14 +414,7 @@ setcolorder(foodTouristConsumption,
               "tourismElement", "Value", "flagObservationStatus", "flagMethod"))
 
 foodTouristConsumption <- foodTouristConsumption[!is.na(Value)]
-# country48 <- c("4","24","50","68","104","120","140","144","148","1248","170","178","218","320",
-#                "324","332","356","360","368","384","404","116","408","450","454","484","508",
-#                "524","562","566","586","604","608","716","646","686","762","834","764","800",
-#                "854","704","231","887","894","760","862","860")
-#
-# foodTouristConsumption <- foodTouristConsumption[geographicAreaM49 %in% country48]
 
-# foodTouristConsumption <- foodTouristConsumption[geographicAreaM49 %in% c(360, 454, 484, 686, 1248, 392, 716)]
 stats = SaveData(domain = "tourism", dataset = "tourismprod",
                  data = foodTouristConsumption, waitTimeout = 1800)
 
