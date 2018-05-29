@@ -1,0 +1,176 @@
+---
+title: "Plugin: Tourist Imputation"
+author:
+- Bruno Caetano Vidigal\
+  
+  Food and Agriculture Organization of the United Nations
+abstract: |
+  The tourist module imputes the amount of **net food consumed by tourists [t]**. It takes into account the number of  tourists visiting a country, their average stay and their consumption patterns to estimate tourist consumption. This correction is small for most countries. However, countries with small populations and large tourist volume could be significantly impacted by tourism. All tables and graphs present in this documentation are just examples. More details on the data are given in the code.
+date: "`r format(Sys.time(), '%e %B %Y')`"
+geometry: margin=1in
+output:
+  pdf_document:
+    pandoc_args: [
+    --tab-stop=2
+    ]
+    number_sections: true
+---
+
+```{r setup, echo=FALSE}
+options(warn=-1)
+knitr::opts_chunk$set(echo = FALSE)
+library(knitr)
+library(pander)
+library(data.table)
+# File in vignettes/Documentation
+# examples <- readRDS('examples.rds')
+examples <- readRDS('C:/Users/caetano/Documents/Github/faoswsTourist/vignettes/tourismExample.rds')
+calories <- fread('C:/Users/caetano/Documents/Github/faoswsTourist/vignettes/calories.csv')
+```
+
+# Input Data and reference files
+
+## Tourism data
+
+The tourism data come from the United Nations World Tourism Organization (UNWTO) and contain the following indicators:
+
+1. Tourist flow (arrivals of non-resident tourists at national borders)
+2. Overnight visitor numbers
+3. Average nights stayed
+4. Same-day visitor numbers
+5. Average days stayed
+
+The data must be requested by ESS to UNWTO every year via an existent cooperation agreement between the two UN agencies.
+
+The tourism data are split into two datasets in the **Domain Tourism** in the Statistical Working System (SWS): **Tourist Flow** and **Tourist Consumption**.
+
+### Tourist Flow data
+
+The dataset **Tourist Flow** is under the domain tourism, element code **60**. This dataset shows the tourist flows between all pairs of countries where:
+
+- `destinationCountryM49`: the country of destiny
+- `originCountryM49`: the country of origin
+- `tourismElement`: the element code for **Arrivals of non-resident tourists at national borders**
+- `timePointYears`: year
+- `Value`: value
+- `flagObservationStatus` and `flagMethod`: the flags. 
+
+```{r}
+pander(examples$touristFlow, row.names = FALSE, caption =
+'Subset of Tourist Flow dataset', digits = 2, split.table = 100)
+```
+
+As you may know, the tourism data are sparse and we try to use as much official data as possible. In this way, if our target variable (**Arrivals of non-resident tourists at national borders**) is not available, we use the following order of priority to measure how many people are coming to a country:
+
+1. Arrivals of non-resident visitors at national borders, by country of residence;
+2. Arrivals of non-resident tourists at national borders, by country of residence;
+3. Arrivals of non-resident visitors at national borders, by nationality;
+4. Arrivals of non-resident tourists at national borders, by nationality;
+5. Arrivals of non-resident tourists in all types of accommodation establishments, by country of residence; 
+6. Arrivals of non-resident tourists in all types of accommodation establishments, by nationality;
+7. Arrivals of non-resident tourists in hotels and similar establishments, by country of residence; 
+8. Arrivals of non-resident tourists in hotels and similar establishments, by nationality.
+
+There are not many problems in doing this as otherwise we would not have input data to compute tourist food consumption.
+
+### Tourist Consumption data
+
+The dataset **Tourist Consumption** is also under the domain tourism. The four **tourismElement** required are: 
+
+1. Overnight visitor numbers
+2. Average nights stayed 
+3. Same-day visitor numbers 
+4. Average days stayed
+
+```{r}
+pander(examples$touConsumpData, row.names = FALSE, caption =
+'Subset of Tourist Consumption dataset', digits = 2, split.table = 100)
+```
+
+## Food data
+
+The output of the Food Imputation module is an input of the Tourist Imputation module. The data come from the domain **Food** and dataset **foodData**, measuredElement **5141**. 
+
+```{r}
+pander(examples$foodConsump, row.names = FALSE, caption =
+'Subset of Food data', digits = 2, split.table = 100)
+```
+
+More details about the Food Imputation module are found in its document **Food Imputation (core)**.
+
+## Calories data
+
+The calories data come from the domain **Agriculture** and dataset **Aupus Ratio**, measuredElement **261**. It is used to compute the calories for each `country-commodity` combination. 
+
+```{r}
+pander(calories, row.names = FALSE, caption =
+'Subset of Calories data', digits = 2, split.table = 100)
+```
+
+
+## Population data
+
+The population data are under the domain **Population**, dataset **population_undp**. Its figures are in the **measuredElement** 511 (Population [1000]).
+
+```{r}
+pander(head(examples$pop, 6), row.names = FALSE, caption =
+'Subset of population_undp', digits = 2, split.table = 100)
+```
+
+# Process
+
+The previous methodology does not show explicitly tourist consumption, accounting it in **Other uses**.
+
+However, the need of estimating tourist consumption, specially in small islands where there is a huge number of tourists coming in, urged the creation of this module.
+
+The methodology behind the **Tourist Imputation** module is straightforward and should be enhanced with more and better information provided by countries.
+
+Conceptually, the module computes net food consumption by tourists in a country. The tourist consumption element for a particular country can be negative in case of more residents of the country leaving as tourists than tourists from other countries visiting.
+
+The lack of information makes we assume that people who come from country `A` to country `B` eat the same food types as people in country `B` but eat the same calorie amounts as in their home country.
+
+## Computing consumption by tourists
+
+The approach is based on the number of day visitors, $N_{D}$, and overnight visitors, $N_{O}$, to and from each country, and information on the average number of nights stayed within each country $\bar{D}$. The first step, then, is to compute the total number of **tourist days**, $N_T$, from and to each country by adding the day visitor counts with the product of the overnight visitor counts and the average nights per visitor:
+
+
+$$
+\begin{aligned}
+N_{T} = N_{D} + N_{O} * \bar{D} \\
+\end{aligned}
+$$
+Thus, we multiply the total number of tourist days by the average daily consumption within the country of origin and allocate this amount to tourist consumption in the destination country.  Moreover, we deduct this total from the food consumption in the country of origin, as the tourist will not be at home to consume these calories.  Thus, we have the change in amount of food availability for commodity i in country j as
+
+$$
+\begin{aligned}
+\bigtriangleup TC_{ij} = -\sum_{k=1, k\neq j}^{m} N_{jk}f_{ij} + \sum_{l=1, l\neq j}^{m} N_{lj}f_{il}\\
+\end{aligned}
+$$
+
+where $N_{lj}$ represents the number of tourists travelling from country `l` to country `j` and $f_{il}$ represents the historic amount of daily nutrients consumed within commodity `i` and in country `l`. This equation can be simplified a bit:
+
+$$
+\begin{aligned}
+\bigtriangleup TC_{ij} = -N_{T}f_{ij} + \sum_{l=1, l\neq j}^{m} N_{lj}f_{il}\\
+\end{aligned}
+$$
+
+- Other procedure the module does is:
+1. Missing value replacement by weighted moving average on the basic tourism data.
+
+
+## Flag System
+
+The new **Flag System** is composed of two variables:
+
+- **flagObservationStatus**;
+- **flagMethod**.
+
+In the Tourist Imputation module, we assign **I** to all estimates under the variable **flagObservationStatus** and **e** to all estimates under **flagMethod**.
+
+# Results
+
+The result of the module is stored in the domain tourism, dataset **Tourism Production**, tourism element 100 (**Net Quantity [t]**).
+
+
+
