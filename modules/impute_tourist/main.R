@@ -49,20 +49,7 @@ if(minYearToProcess > maxYearToProcess | maxYearToProcess < minYearToProcess)
 
 yearRange <- as.character(minYearToProcess:maxYearToProcess)
 
-################################################################################
-##' Obtain computation parameter, this parameter determines whether only
-##' selected session should be validated or the complete production domain.
-validationRange = swsContext.computationParams$validation_selection
-
-if(CheckDebug()){
-  ## validationRange <- "session"
-  validationRange <- "all"
-}
-
-##' Get session key and dataset configuration
-sessionKey = swsContext.datasets[[1]]
-
-##' Obtain the complete imputation Datakey
+## Obtain the complete imputation Datakey
 completeImputationTouristKey = getCompleteImputationKey("tourist")
 completeImputationTouristKey@dimensions$timePointYears@keys <- yearRange
 
@@ -70,14 +57,8 @@ completeImputationFoodKey = getCompleteImputationKey("food")
 completeImputationFoodKey@dataset <- "fooddata"
 completeImputationFoodKey@dimensions$timePointYears@keys <- yearRange
 
-##' Selected the key based on the input parameter
-selectedKey =
-  switch(validationRange,
-         "session" = sessionKey,
-         "all" = completeImputationTouristKey)
-
-destinationCountryM49 <- selectedKey@dimensions$destinationCountryM49@keys
-originCountryM49 <- selectedKey@dimensions$originCountryM49@keys
+destinationCountryM49 <- completeImputationTouristKey@dimensions$destinationCountryM49@keys
+originCountryM49 <- completeImputationTouristKey@dimensions$originCountryM49@keys
 areaCodesM49 <- unique(destinationCountryM49, originCountryM49)
 
 ## Step 1: Pull the food consumption
