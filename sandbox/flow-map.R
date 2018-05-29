@@ -1,4 +1,8 @@
 library(dplyr)
+library(rgdal)
+library(leaflet)
+library(networkD3)
+library(RColorBrewer)
 
 set.seed(1983)
 
@@ -20,7 +24,7 @@ df2
 
 ##
 
-library(networkD3)
+# install.packages("networkD3")
 
 name_vec <- c(unique(df2$origins), unique(df2$destinations))
 
@@ -52,13 +56,14 @@ parset(df2, dimensions = c('origins', 'destinations'),
 ##
 
 library(rnaturalearth) # devtools::install_github('ropenscilabs/rnaturalearth')
-
+# devtools::install_github("ropenscilabs/rnaturalearthdata")
+library(rnaturalearthdata)
 countries <- ne_countries()
 
 states <- ne_states(iso_a2 = 'US')
 
 ##
-
+# install.packages("rgdal")
 library(rgdal)
 
 countries$longitude <- coordinates(countries)[,1]
@@ -96,37 +101,16 @@ flows$origins <- df3$origins
 flows$destinations <- df3$destinations
 
 ##
-
-library(leaflet)
-library(RColorBrewer)
-
 hover <- paste0(flows$origins, " to ",
                 flows$destinations, ': ',
                 as.character(flows$counts))
 
+?brewer.pal
 pal <- colorFactor(brewer.pal(4, 'Set2'), flows$origins)
-
-# flows@data = flows@data[1:5, ]
-
-popup = lapply(paste0("popup", 1:3), popupMaker)
 
 leaflet() %>%
   addProviderTiles('CartoDB.Positron') %>%
-  addPolylines(data = flows, weight = ~ counts,
-               # label = hover,
-               group = ~ origins, color = ~ pal(origins),
-               popup = paste0("Total:", flows$counts)) %>%
+  addPolylines(data = flows, weight = ~counts, label = hover,
+               group = ~origins, color = ~pal(origins)) %>%
   addLayersControl(overlayGroups = unique(flows$origins),
                    options = layersControlOptions(collapsed = FALSE))
-
-
-
-
-
-
-
-
-
-
-
-
